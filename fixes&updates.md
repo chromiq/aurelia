@@ -13,7 +13,9 @@ FIXES
 
 
 UPDATES
-1. Make the regions more accurate, replicate real world borders and shapes
+1. Make the regions more accurate, replicate real world borders and shapes, also make sure to add in the neighbouring countries' borders
+as well to make it actually seem like the real world, in the cause of aurelia, just make up some other fictional nations and make a nice map as well,
+also make sure to add coastlines and a visible ocean or sea or even small lakes and rivers
 - Ask Claude to use an outsourced map that is made for these projects, find it
 - People will not like the game or find it high quality if the regions look like a 1st grader drew them
 2. Add an achievement/award system, there should be milestones or other objectives you should be able to complete in order to get these,
@@ -30,3 +32,11 @@ player in the tip should be based on the difficulty they are playing in, the eas
 5. Design a better background for the game menu, the animation should be clearly visible
 6. Fully revamp the game UI, use the frontend design skill for the UI but make it different, make it playful, simple, add symbols
 to the statistics like you did to the game menu
+7.  Add custom cursor and animations for the cursor like when you click on something that matches with the game's feel
+8. Add a global gdp ranking button that you can click on to see the ranking of real gdp of current modern nations, add the first 30 nations in the
+ranking of real gdp, make it minimalist, simple and small, it should not take up much of the screen, it would be just another thing to be
+excited about in the game and to see if you can be the highest gdp in the world or pass your own nation, this would be both in fictional and real world
+parts but not in the historical part, make sure that those countries' gdps grow as well, the rate at which they grow increases with the difficulty
+level of the campaign
+9. Add a cheat menu.......
+
