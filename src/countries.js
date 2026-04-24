@@ -88,12 +88,12 @@ const UK_REGIONS = [
     labelX: 80, labelY: 280, share: 0.04,
     sensitivity: { tariff: 0.5, minWage: -0.4, rate: -0.3, subsidyKey: "agriculture" } },
   { id: "london", name: "Greater London", industry: "Finance & Services",
-    path: "M 210 295 L 245 285 L 260 315 L 230 325 Z",
-    labelX: 235, labelY: 305, share: 0.27,
+    path: "M 218 298 L 242 296 L 246 318 L 222 320 Z",
+    labelX: 232, labelY: 312, share: 0.27,
     sensitivity: { tariff: -0.4, minWage: -0.1, rate: -1.2, subsidyKey: "services" } },
   { id: "southeast", name: "South East", industry: "Tech & Services",
-    path: "M 170 290 L 220 295 L 245 285 L 260 315 L 230 355 L 170 340 L 140 310 Z",
-    labelX: 200, labelY: 320, share: 0.26,
+    path: "M 170 290 L 218 298 L 222 320 L 246 318 L 260 325 L 240 360 L 170 340 L 140 310 Z",
+    labelX: 190, labelY: 335, share: 0.26,
     sensitivity: { tariff: -0.2, minWage: -0.2, rate: -1.0, subsidyKey: "services" } },
   { id: "ni", name: "Northern Ireland", industry: "Agriculture & Services",
     path: "M 20 140 L 85 140 L 90 195 L 25 190 Z",
@@ -533,4 +533,3 @@ export const TECH_TREE = {
     lesson: "Modern welfare states trade higher taxes and spending for deep social stability. The Nordic model shows this tradeoff most explicitly.",
   },
 };
-
