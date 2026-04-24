@@ -1,36 +1,40 @@
 // ============================================================
 // ACHIEVEMENTS
-// Sarcastic, funny, sometimes hidden milestones
+// Sarcastic, funny, sometimes hidden milestones.
+// v0.7: each achievement carries a `tier` — "canny" for the more ordinary
+// milestones, "uncanny" for the trickier or stranger ones. The UI uses the
+// tier to color the card: emerald for canny, violet for uncanny.
+// Tier groups are intentionally coarse. Future passes can split further.
 // ============================================================
 
 export const ACHIEVEMENTS = [
   // ---- Speed / failure achievements ----
-  { key: "speedrun_collapse", title: "Speedrun the Collapse", icon: "💀", hidden: true,
+  { key: "speedrun_collapse", title: "Speedrun the Collapse", icon: "💀", hidden: true, tier: "uncanny",
     description: "Lose the entire campaign in your very first quarter.",
     check: (s, prev) => s.gameOver && !s.victory && s.turn <= 1 },
-  { key: "one_term", title: "One-Term Wonder", icon: "🫠", hidden: false,
+  { key: "one_term", title: "One-Term Wonder", icon: "🫠", hidden: false, tier: "canny",
     description: "Lose the campaign before Turn 10. A swift and decisive failure.",
     check: (s) => s.gameOver && !s.victory && s.turn < 10 },
-  { key: "shelf_life", title: "Cling to Power", icon: "⏳", hidden: false,
+  { key: "shelf_life", title: "Cling to Power", icon: "⏳", hidden: false, tier: "canny",
     description: "Survive 50 turns in a single campaign. Historic tenure.",
     check: (s) => s.turn >= 50 && !s.gameOver },
 
   // ---- Unemployment extremes ----
-  { key: "invisible_hand", title: "Invisible Hand, Visible Shoulders", icon: "🧤", hidden: false,
+  { key: "invisible_hand", title: "Invisible Hand, Visible Shoulders", icon: "🧤", hidden: false, tier: "uncanny",
     description: "Keep unemployment below 2.5% for two consecutive quarters. Adam Smith would cackle.",
     check: (s, p, hist) => hist.length >= 2 && hist.slice(-2).every(h => h.unemployment < 2.5) },
-  { key: "breadlines", title: "Vibrant Soup Kitchen Economy", icon: "🍜", hidden: false,
+  { key: "breadlines", title: "Vibrant Soup Kitchen Economy", icon: "🍜", hidden: false, tier: "canny",
     description: "Keep unemployment above 12% for two consecutive quarters. The queues are thriving.",
     check: (s, p, hist) => hist.length >= 2 && hist.slice(-2).every(h => h.unemployment > 12) },
 
   // ---- Inflation extremes ----
-  { key: "weimar_vibes", title: "Wheelbarrow Discourse", icon: "🛒", hidden: false,
+  { key: "weimar_vibes", title: "Wheelbarrow Discourse", icon: "🛒", hidden: false, tier: "canny",
     description: "Push inflation above 15% for two consecutive quarters. Bread is now an investment vehicle.",
     check: (s, p, hist) => hist.length >= 2 && hist.slice(-2).every(h => h.inflation > 15) },
-  { key: "japan_core", title: "Embraced the Deflation", icon: "❄️", hidden: false,
+  { key: "japan_core", title: "Embraced the Deflation", icon: "❄️", hidden: false, tier: "canny",
     description: "Keep inflation negative for two consecutive quarters. Prices are falling. So is hope.",
     check: (s, p, hist) => hist.length >= 2 && hist.slice(-2).every(h => h.inflation < 0) },
-  { key: "volcker_moment", title: "Channeled Volcker", icon: "🗡️", hidden: false,
+  { key: "volcker_moment", title: "Channeled Volcker", icon: "🗡️", hidden: false, tier: "uncanny",
     description: "Break inflation from above 10% down to under 3% within a single campaign.",
     check: (s, p, hist) => {
       const maxI = Math.max(...hist.map(h => h.inflation));
@@ -38,65 +42,68 @@ export const ACHIEVEMENTS = [
     } },
 
   // ---- Weird combinations ----
-  { key: "phillips_who", title: "Phillips Who?", icon: "📐", hidden: true,
+  { key: "phillips_who", title: "Phillips Who?", icon: "📐", hidden: true, tier: "uncanny",
     description: "Achieve inflation below 2% AND unemployment below 3% simultaneously. Macroeconomics in shambles.",
     check: (s) => s.inflation < 0.02 && s.unemployment < 0.03 },
-  { key: "stagflation_mood", title: "Living the 70s", icon: "🕺", hidden: false,
+  { key: "stagflation_mood", title: "Living the 70s", icon: "🕺", hidden: false, tier: "canny",
     description: "Simultaneously hold inflation above 8% and unemployment above 8%.",
     check: (s) => s.inflation > 0.08 && s.unemployment > 0.08 },
 
   // ---- Policy obsessions ----
-  { key: "print_go_brrr", title: "Printer Goes Brrr", icon: "🖨️", hidden: false,
+  { key: "print_go_brrr", title: "Printer Goes Brrr", icon: "🖨️", hidden: false, tier: "canny",
     description: "Run money supply growth above 10% for four consecutive quarters. Consequences pending.",
     check: (s, p, hist, log, ctx) => ctx.counters.printBrrr >= 4 },
-  { key: "tariff_enjoyer", title: "Tariff Connoisseur", icon: "⚓", hidden: false,
+  { key: "tariff_enjoyer", title: "Tariff Connoisseur", icon: "⚓", hidden: false, tier: "canny",
     description: "Keep tariffs above 15% for five consecutive quarters. Smoot and Hawley are smiling somewhere.",
     check: (s, p, hist, log, ctx) => ctx.counters.tariffHigh >= 5 },
-  { key: "free_trader", title: "Ricardo's Disciple", icon: "🌐", hidden: false,
+  { key: "free_trader", title: "Ricardo's Disciple", icon: "🌐", hidden: false, tier: "canny",
     description: "Hold tariffs at zero for ten consecutive quarters. Comparative advantage, baby.",
     check: (s, p, hist, log, ctx) => ctx.counters.zeroTariff >= 10 },
-  { key: "austerity_fan", title: "Iron Chancellor", icon: "📏", hidden: false,
+  { key: "austerity_fan", title: "Iron Chancellor", icon: "📏", hidden: false, tier: "canny",
     description: "Hold government spending below 13% for eight consecutive quarters.",
     check: (s, p, hist, log, ctx) => ctx.counters.austerity >= 8 },
 
   // ---- Approval extremes ----
-  { key: "hated", title: "Universally Despised", icon: "🖕", hidden: false,
+  { key: "hated", title: "Universally Despised", icon: "🖕", hidden: false, tier: "canny",
     description: "Let approval fall below 15% and survive four more quarters. Impressive staying power.",
     check: (s, p, hist, log, ctx) => ctx.counters.hated >= 4 && !s.gameOver },
-  { key: "cult", title: "Cult of Personality", icon: "👑", hidden: false,
+  { key: "cult", title: "Cult of Personality", icon: "👑", hidden: false, tier: "uncanny",
     description: "Sustain approval above 90% for four consecutive quarters. Suspicious, honestly.",
     check: (s, p, hist, log, ctx) => ctx.counters.adored >= 4 },
 
   // ---- Debt extremes ----
-  { key: "debt_hoarder", title: "Debt Hoarder", icon: "📉", hidden: true,
+  { key: "debt_hoarder", title: "Debt Hoarder", icon: "📉", hidden: true, tier: "uncanny",
     description: "Push debt-to-GDP above 150% without losing the campaign.",
     check: (s) => (s.debt / s.gdp) > 1.5 && !s.gameOver },
-  { key: "debt_clear", title: "Fiscal Saint", icon: "✨", hidden: false,
+  { key: "debt_clear", title: "Fiscal Saint", icon: "✨", hidden: false, tier: "canny",
     description: "Bring debt-to-GDP below 40% at any point.",
     check: (s) => (s.debt / s.gdp) < 0.4 },
 
   // ---- Victory achievements ----
-  { key: "first_victory", title: "First Mandate", icon: "🏅", hidden: false,
+  { key: "first_victory", title: "First Mandate", icon: "🏅", hidden: false, tier: "canny",
     description: "Win any campaign.",
     check: (s) => s.victory },
-  { key: "autocrat_victory", title: "Absolute Ruler", icon: "🔥", hidden: false,
+  { key: "autocrat_victory", title: "Absolute Ruler", icon: "🔥", hidden: false, tier: "uncanny",
     description: "Win a campaign on Autocrat difficulty. Respect.",
     check: (s) => s.victory && s.difficulty === "autocrat" },
-  { key: "depression_survivor", title: "Weathered the Storm", icon: "☔", hidden: false,
+  { key: "depression_survivor", title: "Weathered the Storm", icon: "☔", hidden: false, tier: "canny",
     description: "Complete the Great Depression scenario.",
     check: (s) => s.victory && s.scenarioKey === "depression1929" },
-  { key: "paid_the_price", title: "Paid the Price", icon: "⚒️", hidden: false,
+  { key: "paid_the_price", title: "Paid the Price", icon: "⚒️", hidden: false, tier: "uncanny",
     description: "Complete the Volcker scenario. Inflation is dead, and you killed it.",
     check: (s) => s.victory && s.scenarioKey === "volcker1981" },
-  { key: "pandemic_survivor", title: "Learned to Live With It", icon: "😷", hidden: false,
+  { key: "pandemic_survivor", title: "Learned to Live With It", icon: "😷", hidden: false, tier: "canny",
     description: "Complete the Pandemic scenario.",
     check: (s) => s.victory && s.scenarioKey === "pandemic2020" },
+  { key: "lira_held", title: "Held the Lira", icon: "🪙", hidden: false, tier: "uncanny",
+    description: "Complete the Turkish Currency Crisis scenario. Orthodoxy restored.",
+    check: (s) => s.victory && s.scenarioKey === "turkey2021" },
 
   // ---- Uncanny ones ----
-  { key: "perfect_quarter", title: "The One Good Quarter", icon: "🎯", hidden: false,
+  { key: "perfect_quarter", title: "The One Good Quarter", icon: "🎯", hidden: false, tier: "canny",
     description: "Hit every target simultaneously within the first 5 turns. A fluke, surely.",
     check: (s) => s.turn <= 5 && s.inTargetStreak >= 1 },
-  { key: "rollercoaster", title: "Macroeconomic Rollercoaster", icon: "🎢", hidden: true,
+  { key: "rollercoaster", title: "Macroeconomic Rollercoaster", icon: "🎢", hidden: true, tier: "uncanny",
     description: "Swing growth by more than 8 percentage points quarter-over-quarter.",
     check: (s, p, hist) => {
       if (hist.length < 2) return false;
@@ -104,10 +111,17 @@ export const ACHIEVEMENTS = [
       const prev = hist[hist.length - 2].gdpGrowth;
       return Math.abs(last - prev) > 8;
     } },
-  { key: "all_techs", title: "Institutional Architect", icon: "🏛️", hidden: false,
+  { key: "all_techs", title: "Institutional Architect", icon: "🏛️", hidden: false, tier: "uncanny",
     description: "Unlock every Institution in one campaign.",
     check: (s) => (s.unlockedTech || []).length >= 8 },
 ];
+
+// Visual palette for achievement tiers. Referenced by AchievementsPanel
+// and the in-game unlock ticker so colors stay consistent.
+export const TIER_STYLE = {
+  canny: { label: "Canny", border: "#7a9960", bg: "#e5f0da", accent: "#446a32" },
+  uncanny: { label: "Uncanny", border: "#7c3aed", bg: "#ede9fe", accent: "#5b21b6" },
+};
 
 // Run a fresh pass over all achievements and return newly unlocked keys
 export function checkAchievements(state, prevState, history, log, counters, alreadyUnlocked) {
@@ -342,4 +356,47 @@ export const CHEATS = [
   { key: "reset_stats", label: "Fresh Start", icon: "🔄",
     description: "Returns you to starting values without losing your tech or turn count.",
     apply: (s) => ({ ...s, gdp: 1000, gdpGrowth: 0.025, unemployment: 0.05, inflation: 0.02, interestRate: 0.03, debt: 500, approval: 60 }) },
+];
+
+
+// ============================================================
+// UPDATES LOG
+// Short, plain-language changelog surfaced in the main menu corner.
+// Newest entries go first. Keep wording neutral and concise.
+// ============================================================
+
+export const UPDATES_LOG = [
+  {
+    version: "0.7",
+    date: "Apr 2026",
+    entries: [
+      { type: "fix", text: "Resolved a crash that produced a blank screen when a campaign ended. End-of-run screens now render reliably for both victories and collapses." },
+      { type: "fix", text: "Region labels on the map no longer collide with ocean and sea names. Sea names are rendered on a dedicated layer above the land." },
+      { type: "fix", text: "Region name backgrounds enlarged to cover both the name and the industry tag, improving legibility." },
+      { type: "fix", text: "Berlin is no longer obscured by surrounding regions. The Eastern Germany polygon has been reshaped and layer order corrected." },
+      { type: "add", text: "Turkey 2021 added as a historical scenario. Restore monetary orthodoxy during a live currency crisis." },
+      { type: "add", text: "Achievements now carry Canny and Uncanny tiers, with color coding to indicate rarity and difficulty." },
+      { type: "add", text: "A compact updates log has been added to the main menu for tracking changes across versions." },
+    ],
+  },
+  {
+    version: "0.6",
+    date: "Apr 2026",
+    entries: [
+      { type: "add", text: "Twenty achievements introduced, including hidden ones. Progress persists across campaigns." },
+      { type: "add", text: "Global GDP ranking panel with live position updates during gameplay." },
+      { type: "add", text: "Clickable statistic tiles with quarterly history charts and tailored advisor notes." },
+      { type: "add", text: "Map backdrops extended with oceans, neighboring countries, and rivers for each nation." },
+      { type: "tune", text: "Difficulty recalibrated downward. Win streak requirements reduced across all tiers." },
+    ],
+  },
+  {
+    version: "0.5",
+    date: "Mar 2026",
+    entries: [
+      { type: "add", text: "Historical scenarios introduced: Great Depression, Stagflation, Volcker Shock, Global Financial Crisis, Pandemic." },
+      { type: "add", text: "Economic Institutions tech tree with eight unlockable reforms across three tiers." },
+      { type: "add", text: "Custom country builder with four economic archetypes." },
+    ],
+  },
 ];
