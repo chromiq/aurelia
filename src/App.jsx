@@ -14,6 +14,7 @@ import {
   ACHIEVEMENTS, checkAchievements, updateCounters, loadUnlocks, saveUnlocks,
   WORLD_GDP_2026, advanceWorld, buildRanking,
   getStatTip, CHEAT_CODE, CHEATS,
+  UPDATES_LOG,
 } from "./extras.js";
 
 // ============================================================
@@ -420,7 +421,11 @@ function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch {} }
 // MAP BACKDROPS (ocean, neighbors, rivers per country)
 // ============================================================
 
-function MapBackdrop({ countryKey }) {
+// MapBackdrop is split into two layers via the `layer` prop.
+// "base" draws oceans, neighbor landmasses, rivers — everything that sits BEHIND regions.
+// "labels" draws ocean/sea names — these render AFTER regions so they are never covered.
+// Splitting the rendering pass fixes the v0.5 bug where region shapes overlapped sea names.
+function MapBackdrop({ countryKey, layer = "base" }) {
   const commonDefs = (
     <defs>
       <linearGradient id="ocean-grad" x1="0" y1="0" x2="0" y2="1">
@@ -437,118 +442,215 @@ function MapBackdrop({ countryKey }) {
     </defs>
   );
 
-  if (countryKey === "usa2026") return (
-    <g>{commonDefs}
-      <rect x="0" y="0" width="680" height="380" fill="url(#ocean-grad)" />
-      <rect x="0" y="0" width="680" height="380" fill="url(#wave-pattern)" opacity="0.3" />
-      <path d="M 0 0 L 680 0 L 680 95 L 640 95 L 540 110 L 420 95 L 280 90 L 150 85 L 50 100 L 0 95 Z" fill="url(#neighbor-grad)" opacity="0.7" />
-      <text x="340" y="50" fontFamily="Fraunces" fontSize="14" fontStyle="italic" fill="#2a1810" opacity="0.5" textAnchor="middle">CANADA</text>
-      <path d="M 40 380 L 85 375 L 135 340 L 240 310 L 340 330 L 450 355 L 570 340 L 600 360 L 600 380 Z" fill="url(#neighbor-grad)" opacity="0.7" />
-      <text x="270" y="370" fontFamily="Fraunces" fontSize="12" fontStyle="italic" fill="#2a1810" opacity="0.45" textAnchor="middle">MEXICO</text>
-      <ellipse cx="495" cy="125" rx="30" ry="10" fill="#2c4661" stroke="#1a1510" strokeWidth="0.5"/>
-      <ellipse cx="540" cy="140" rx="18" ry="6" fill="#2c4661" stroke="#1a1510" strokeWidth="0.5"/>
-      <path d="M 440 140 Q 430 200 420 260 Q 400 290 380 320" stroke="#4a6580" strokeWidth="1.5" fill="none" opacity="0.7"/>
-      <text x="30" y="260" fontFamily="Fraunces" fontSize="11" fontStyle="italic" fill="#5a7a95" opacity="0.6">PACIFIC</text>
-      <text x="650" y="260" fontFamily="Fraunces" fontSize="11" fontStyle="italic" fill="#5a7a95" opacity="0.6" textAnchor="end">ATLANTIC</text>
+  // Small helper: render an ocean/sea label with a soft parchment-tone halo
+  // so it stays legible even when it sits near a region edge.
+  const SeaLabel = ({ x, y, anchor = "start", children, fontSize = 11 }) => (
+    <g style={{ pointerEvents: "none" }}>
+      <text x={x} y={y} fontFamily="Fraunces, serif" fontSize={fontSize + 2} fontStyle="italic"
+        fill="#0f1319" opacity="0.5" textAnchor={anchor} stroke="#0f1319" strokeWidth="3"
+        strokeLinejoin="round" paintOrder="stroke">{children}</text>
+      <text x={x} y={y} fontFamily="Fraunces, serif" fontSize={fontSize} fontStyle="italic"
+        fill="#a8c3d8" opacity="0.85" textAnchor={anchor}>{children}</text>
     </g>
   );
 
-  if (countryKey === "uk2026") return (
-    <g>{commonDefs}
-      <rect x="0" y="0" width="300" height="400" fill="url(#ocean-grad)" />
-      <rect x="0" y="0" width="300" height="400" fill="url(#wave-pattern)" opacity="0.3" />
-      <path d="M 180 360 L 300 360 L 300 400 L 120 400 L 140 380 Z" fill="url(#neighbor-grad)" opacity="0.65" />
-      <text x="240" y="390" fontFamily="Fraunces" fontSize="11" fontStyle="italic" fill="#2a1810" opacity="0.5" textAnchor="middle">FRANCE</text>
-      <path d="M 140 305 Q 180 310 220 308 Q 250 306 280 308" stroke="#4a6580" strokeWidth="1.2" fill="none" opacity="0.7"/>
-      <text x="20" y="180" fontFamily="Fraunces" fontSize="11" fontStyle="italic" fill="#5a7a95" opacity="0.6">ATLANTIC</text>
-      <text x="275" y="180" fontFamily="Fraunces" fontSize="11" fontStyle="italic" fill="#5a7a95" opacity="0.6" textAnchor="end">NORTH SEA</text>
-    </g>
+  const NeighborLabel = ({ x, y, anchor = "middle", children, fontSize = 10 }) => (
+    <text x={x} y={y} fontFamily="Fraunces, serif" fontSize={fontSize} fontStyle="italic"
+      fill="#f5ecd5" opacity="0.7" textAnchor={anchor}
+      style={{ pointerEvents: "none", paintOrder: "stroke", stroke: "#2a1810", strokeWidth: 2.5, strokeLinejoin: "round" }}>
+      {children}
+    </text>
   );
 
-  if (countryKey === "germany2026") return (
-    <g>{commonDefs}
-      <rect x="0" y="0" width="520" height="400" fill="#2d3a48" />
-      <path d="M 200 0 L 360 0 L 360 60 L 200 60 Z" fill="url(#neighbor-grad)" opacity="0.6"/>
-      <text x="280" y="30" fontFamily="Fraunces" fontSize="10" fontStyle="italic" fill="#2a1810" opacity="0.5" textAnchor="middle">DENMARK</text>
-      <path d="M 455 185 L 520 180 L 520 400 L 460 400 L 460 230 Z" fill="url(#neighbor-grad)" opacity="0.6"/>
-      <text x="490" y="280" fontFamily="Fraunces" fontSize="10" fontStyle="italic" fill="#2a1810" opacity="0.5" textAnchor="middle">POLAND</text>
-      <path d="M 0 0 L 100 150 L 0 200 Z" fill="url(#neighbor-grad)" opacity="0.55"/>
-      <path d="M 170 310 L 430 340 L 430 400 L 170 400 Z" fill="url(#neighbor-grad)" opacity="0.6"/>
-      <text x="300" y="385" fontFamily="Fraunces" fontSize="10" fontStyle="italic" fill="#2a1810" opacity="0.5" textAnchor="middle">AUSTRIA</text>
-      <path d="M 0 0 L 200 0 L 200 60 L 100 150 L 0 200 Z" fill="url(#ocean-grad)"/>
-      <text x="60" y="55" fontFamily="Fraunces" fontSize="10" fontStyle="italic" fill="#5a7a95" opacity="0.65">NORTH SEA</text>
-      <path d="M 150 145 Q 170 200 200 260 Q 220 320 170 370" stroke="#4a6580" strokeWidth="1.3" fill="none" opacity="0.7"/>
-    </g>
-  );
+  if (countryKey === "usa2026") {
+    if (layer === "base") return (
+      <g>{commonDefs}
+        <rect x="0" y="0" width="680" height="380" fill="url(#ocean-grad)" />
+        <rect x="0" y="0" width="680" height="380" fill="url(#wave-pattern)" opacity="0.3" />
+        <path d="M 0 0 L 680 0 L 680 95 L 640 95 L 540 110 L 420 95 L 280 90 L 150 85 L 50 100 L 0 95 Z" fill="url(#neighbor-grad)" opacity="0.7" />
+        <path d="M 40 380 L 85 375 L 135 340 L 240 310 L 340 330 L 450 355 L 570 340 L 600 360 L 600 380 Z" fill="url(#neighbor-grad)" opacity="0.7" />
+        <ellipse cx="495" cy="125" rx="30" ry="10" fill="#2c4661" stroke="#1a1510" strokeWidth="0.5"/>
+        <ellipse cx="540" cy="140" rx="18" ry="6" fill="#2c4661" stroke="#1a1510" strokeWidth="0.5"/>
+        <path d="M 440 140 Q 430 200 420 260 Q 400 290 380 320" stroke="#4a6580" strokeWidth="1.5" fill="none" opacity="0.7"/>
+      </g>
+    );
+    return (
+      <g>
+        <NeighborLabel x={340} y={50} fontSize={14}>CANADA</NeighborLabel>
+        <NeighborLabel x={270} y={372} fontSize={12}>MEXICO</NeighborLabel>
+        <SeaLabel x={30} y={260}>PACIFIC</SeaLabel>
+        <SeaLabel x={650} y={260} anchor="end">ATLANTIC</SeaLabel>
+      </g>
+    );
+  }
 
-  if (countryKey === "france2026") return (
-    <g>{commonDefs}
-      <rect x="0" y="0" width="480" height="400" fill="url(#ocean-grad)" />
-      <path d="M 100 0 L 300 0 L 280 50 L 120 40 Z" fill="url(#neighbor-grad)" opacity="0.55"/>
-      <text x="200" y="25" fontFamily="Fraunces" fontSize="10" fontStyle="italic" fill="#2a1810" opacity="0.5" textAnchor="middle">UK</text>
-      <path d="M 440 80 L 480 80 L 480 300 L 445 200 Z" fill="url(#neighbor-grad)" opacity="0.6"/>
-      <path d="M 420 230 L 480 240 L 480 380 L 410 370 Z" fill="url(#neighbor-grad)" opacity="0.6"/>
-      <path d="M 0 360 L 300 380 L 300 400 L 0 400 Z" fill="url(#neighbor-grad)" opacity="0.6"/>
-      <text x="150" y="393" fontFamily="Fraunces" fontSize="10" fontStyle="italic" fill="#2a1810" opacity="0.5" textAnchor="middle">SPAIN</text>
-      <text x="40" y="280" fontFamily="Fraunces" fontSize="10" fontStyle="italic" fill="#5a7a95" opacity="0.6">ATLANTIC</text>
-      <path d="M 240 180 Q 260 150 285 130 Q 310 115 335 95" stroke="#4a6580" strokeWidth="1.2" fill="none" opacity="0.7"/>
-      <path d="M 340 210 Q 360 260 370 310 Q 375 340 380 365" stroke="#4a6580" strokeWidth="1.2" fill="none" opacity="0.7"/>
-    </g>
-  );
+  if (countryKey === "uk2026") {
+    if (layer === "base") return (
+      <g>{commonDefs}
+        <rect x="0" y="0" width="300" height="400" fill="url(#ocean-grad)" />
+        <rect x="0" y="0" width="300" height="400" fill="url(#wave-pattern)" opacity="0.3" />
+        <path d="M 180 360 L 300 360 L 300 400 L 120 400 L 140 380 Z" fill="url(#neighbor-grad)" opacity="0.65" />
+        <path d="M 140 305 Q 180 310 220 308 Q 250 306 280 308" stroke="#4a6580" strokeWidth="1.2" fill="none" opacity="0.7"/>
+      </g>
+    );
+    return (
+      <g>
+        <NeighborLabel x={240} y={390} fontSize={11}>FRANCE</NeighborLabel>
+        <SeaLabel x={20} y={180}>ATLANTIC</SeaLabel>
+        <SeaLabel x={278} y={180} anchor="end">NORTH SEA</SeaLabel>
+      </g>
+    );
+  }
 
-  if (countryKey === "japan2026") return (
-    <g>{commonDefs}
-      <rect x="0" y="0" width="620" height="400" fill="url(#ocean-grad)"/>
-      <rect x="0" y="0" width="620" height="400" fill="url(#wave-pattern)" opacity="0.3"/>
-      <path d="M 0 200 L 30 190 L 50 240 L 40 310 L 20 340 L 0 330 Z" fill="url(#neighbor-grad)" opacity="0.6"/>
-      <text x="20" y="275" fontFamily="Fraunces" fontSize="9" fontStyle="italic" fill="#2a1810" opacity="0.5" textAnchor="middle">KR</text>
-      <path d="M 380 0 L 620 0 L 620 65 L 570 75 L 450 70 L 380 50 Z" fill="url(#neighbor-grad)" opacity="0.55"/>
-      <text x="500" y="35" fontFamily="Fraunces" fontSize="10" fontStyle="italic" fill="#2a1810" opacity="0.5" textAnchor="middle">RUSSIA</text>
-      <text x="540" y="260" fontFamily="Fraunces" fontSize="11" fontStyle="italic" fill="#5a7a95" opacity="0.6">PACIFIC</text>
-    </g>
-  );
+  if (countryKey === "germany2026") {
+    if (layer === "base") return (
+      <g>{commonDefs}
+        <rect x="0" y="0" width="520" height="400" fill="#2d3a48" />
+        <path d="M 200 0 L 360 0 L 360 60 L 200 60 Z" fill="url(#neighbor-grad)" opacity="0.6"/>
+        <path d="M 455 185 L 520 180 L 520 400 L 460 400 L 460 230 Z" fill="url(#neighbor-grad)" opacity="0.6"/>
+        <path d="M 0 0 L 100 150 L 0 200 Z" fill="url(#neighbor-grad)" opacity="0.55"/>
+        <path d="M 170 310 L 430 340 L 430 400 L 170 400 Z" fill="url(#neighbor-grad)" opacity="0.6"/>
+        <path d="M 0 0 L 200 0 L 200 60 L 100 150 L 0 200 Z" fill="url(#ocean-grad)"/>
+        <path d="M 150 145 Q 170 200 200 260 Q 220 320 170 370" stroke="#4a6580" strokeWidth="1.3" fill="none" opacity="0.7"/>
+      </g>
+    );
+    return (
+      <g>
+        <NeighborLabel x={280} y={30}>DENMARK</NeighborLabel>
+        <NeighborLabel x={490} y={280}>POLAND</NeighborLabel>
+        <NeighborLabel x={300} y={385}>AUSTRIA</NeighborLabel>
+        <SeaLabel x={60} y={55}>NORTH SEA</SeaLabel>
+      </g>
+    );
+  }
 
-  if (countryKey === "canada2026") return (
-    <g>{commonDefs}
-      <rect x="0" y="0" width="620" height="360" fill="url(#ocean-grad)"/>
-      <rect x="0" y="300" width="620" height="60" fill="url(#neighbor-grad)" opacity="0.65"/>
-      <text x="310" y="340" fontFamily="Fraunces" fontSize="13" fontStyle="italic" fill="#2a1810" opacity="0.5" textAnchor="middle">UNITED STATES</text>
-      <text x="50" y="25" fontFamily="Fraunces" fontSize="11" fontStyle="italic" fill="#5a7a95" opacity="0.6">ARCTIC OCEAN</text>
-      <ellipse cx="410" cy="285" rx="40" ry="10" fill="#2c4661" stroke="#1a1510" strokeWidth="0.5"/>
-      <ellipse cx="470" cy="295" rx="22" ry="7" fill="#2c4661" stroke="#1a1510" strokeWidth="0.5"/>
-    </g>
-  );
+  if (countryKey === "france2026") {
+    if (layer === "base") return (
+      <g>{commonDefs}
+        <rect x="0" y="0" width="480" height="400" fill="url(#ocean-grad)" />
+        <path d="M 100 0 L 300 0 L 280 50 L 120 40 Z" fill="url(#neighbor-grad)" opacity="0.55"/>
+        <path d="M 440 80 L 480 80 L 480 300 L 445 200 Z" fill="url(#neighbor-grad)" opacity="0.6"/>
+        <path d="M 420 230 L 480 240 L 480 380 L 410 370 Z" fill="url(#neighbor-grad)" opacity="0.6"/>
+        <path d="M 0 360 L 300 380 L 300 400 L 0 400 Z" fill="url(#neighbor-grad)" opacity="0.6"/>
+        <path d="M 240 180 Q 260 150 285 130 Q 310 115 335 95" stroke="#4a6580" strokeWidth="1.2" fill="none" opacity="0.7"/>
+        <path d="M 340 210 Q 360 260 370 310 Q 375 340 380 365" stroke="#4a6580" strokeWidth="1.2" fill="none" opacity="0.7"/>
+      </g>
+    );
+    return (
+      <g>
+        <NeighborLabel x={200} y={25}>UK</NeighborLabel>
+        <NeighborLabel x={150} y={393}>SPAIN</NeighborLabel>
+        <SeaLabel x={40} y={280}>ATLANTIC</SeaLabel>
+      </g>
+    );
+  }
 
-  if (countryKey === "italy2026") return (
-    <g>{commonDefs}
-      <rect x="0" y="0" width="500" height="470" fill="url(#ocean-grad)"/>
-      <rect x="0" y="0" width="500" height="470" fill="url(#wave-pattern)" opacity="0.3"/>
-      <path d="M 0 0 L 85 0 L 85 110 L 0 110 Z" fill="url(#neighbor-grad)" opacity="0.55"/>
-      <path d="M 85 0 L 400 0 L 400 70 L 85 70 Z" fill="url(#neighbor-grad)" opacity="0.55"/>
-      <text x="240" y="35" fontFamily="Fraunces" fontSize="10" fontStyle="italic" fill="#2a1810" opacity="0.5" textAnchor="middle">ALPS / CH / AT</text>
-      <path d="M 335 70 L 500 70 L 500 300 L 345 150 Z" fill="url(#neighbor-grad)" opacity="0.55"/>
-      <text x="450" y="335" fontFamily="Fraunces" fontSize="10" fontStyle="italic" fill="#5a7a95" opacity="0.6" textAnchor="end">ADRIATIC</text>
-      <text x="60" y="300" fontFamily="Fraunces" fontSize="10" fontStyle="italic" fill="#5a7a95" opacity="0.6">TYRRHENIAN</text>
-      <path d="M 90 145 Q 180 150 280 155 Q 330 155 335 155" stroke="#4a6580" strokeWidth="1.2" fill="none" opacity="0.7"/>
-    </g>
-  );
+  if (countryKey === "japan2026") {
+    if (layer === "base") return (
+      <g>{commonDefs}
+        <rect x="0" y="0" width="620" height="400" fill="url(#ocean-grad)"/>
+        <rect x="0" y="0" width="620" height="400" fill="url(#wave-pattern)" opacity="0.3"/>
+        <path d="M 0 200 L 30 190 L 50 240 L 40 310 L 20 340 L 0 330 Z" fill="url(#neighbor-grad)" opacity="0.6"/>
+        <path d="M 380 0 L 620 0 L 620 65 L 570 75 L 450 70 L 380 50 Z" fill="url(#neighbor-grad)" opacity="0.55"/>
+      </g>
+    );
+    return (
+      <g>
+        <NeighborLabel x={20} y={275} fontSize={9}>KR</NeighborLabel>
+        <NeighborLabel x={500} y={35}>RUSSIA</NeighborLabel>
+        <SeaLabel x={540} y={260}>PACIFIC</SeaLabel>
+      </g>
+    );
+  }
 
-  if (countryKey === "aurelia" || countryKey === "custom") return (
-    <g>{commonDefs}
-      <rect x="0" y="0" width="640" height="450" fill="url(#ocean-grad)"/>
-      <rect x="0" y="0" width="640" height="450" fill="url(#wave-pattern)" opacity="0.3"/>
-      <path d="M 555 145 L 640 130 L 640 320 L 580 235 Z" fill="url(#neighbor-grad)" opacity="0.6"/>
-      <text x="610" y="220" fontFamily="Fraunces" fontSize="9" fontStyle="italic" fill="#2a1810" opacity="0.5" textAnchor="middle">TALARAN</text>
-      <path d="M 60 40 L 580 40 L 555 145 L 445 115 L 275 105 L 180 95 L 95 135 L 60 130 Z" fill="url(#neighbor-grad)" opacity="0.55"/>
-      <text x="320" y="85" fontFamily="Fraunces" fontSize="10" fontStyle="italic" fill="#2a1810" opacity="0.5" textAnchor="middle">NORTHERN MARCHES</text>
-      <path d="M 130 395 L 475 410 L 500 430 L 130 430 Z" fill="url(#neighbor-grad)" opacity="0.55"/>
-      <text x="300" y="425" fontFamily="Fraunces" fontSize="10" fontStyle="italic" fill="#2a1810" opacity="0.5" textAnchor="middle">DUCHY OF MORAVELLE</text>
-      <text x="25" y="265" fontFamily="Fraunces" fontSize="11" fontStyle="italic" fill="#5a7a95" opacity="0.6">OPEN SEA</text>
-      <path d="M 300 220 Q 310 280 300 330 Q 295 370 270 420" stroke="#4a6580" strokeWidth="1.3" fill="none" opacity="0.7"/>
-    </g>
-  );
+  if (countryKey === "canada2026") {
+    if (layer === "base") return (
+      <g>{commonDefs}
+        <rect x="0" y="0" width="620" height="360" fill="url(#ocean-grad)"/>
+        <rect x="0" y="300" width="620" height="60" fill="url(#neighbor-grad)" opacity="0.65"/>
+        <ellipse cx="410" cy="285" rx="40" ry="10" fill="#2c4661" stroke="#1a1510" strokeWidth="0.5"/>
+        <ellipse cx="470" cy="295" rx="22" ry="7" fill="#2c4661" stroke="#1a1510" strokeWidth="0.5"/>
+      </g>
+    );
+    return (
+      <g>
+        <NeighborLabel x={310} y={340} fontSize={13}>UNITED STATES</NeighborLabel>
+        <SeaLabel x={50} y={25}>ARCTIC OCEAN</SeaLabel>
+      </g>
+    );
+  }
 
-  return <rect x="0" y="0" width="640" height="450" fill="#1e2a36"/>;
+  if (countryKey === "italy2026") {
+    if (layer === "base") return (
+      <g>{commonDefs}
+        <rect x="0" y="0" width="500" height="470" fill="url(#ocean-grad)"/>
+        <rect x="0" y="0" width="500" height="470" fill="url(#wave-pattern)" opacity="0.3"/>
+        <path d="M 0 0 L 85 0 L 85 110 L 0 110 Z" fill="url(#neighbor-grad)" opacity="0.55"/>
+        <path d="M 85 0 L 400 0 L 400 70 L 85 70 Z" fill="url(#neighbor-grad)" opacity="0.55"/>
+        <path d="M 335 70 L 500 70 L 500 300 L 345 150 Z" fill="url(#neighbor-grad)" opacity="0.55"/>
+        <path d="M 90 145 Q 180 150 280 155 Q 330 155 335 155" stroke="#4a6580" strokeWidth="1.2" fill="none" opacity="0.7"/>
+      </g>
+    );
+    return (
+      <g>
+        <NeighborLabel x={240} y={35}>ALPS · CH · AT</NeighborLabel>
+        <SeaLabel x={450} y={335} anchor="end">ADRIATIC</SeaLabel>
+        <SeaLabel x={60} y={300}>TYRRHENIAN</SeaLabel>
+      </g>
+    );
+  }
+
+  // TURKEY — new in v0.7 historical scenario
+  if (countryKey === "turkey2023") {
+    if (layer === "base") return (
+      <g>{commonDefs}
+        <rect x="0" y="0" width="680" height="380" fill="url(#ocean-grad)"/>
+        <rect x="0" y="0" width="680" height="380" fill="url(#wave-pattern)" opacity="0.3"/>
+        {/* Greece/Bulgaria/Balkans sliver at top-left */}
+        <path d="M 0 0 L 140 0 L 145 80 L 70 120 L 0 110 Z" fill="url(#neighbor-grad)" opacity="0.55"/>
+        {/* Russia/Caucasus to the northeast */}
+        <path d="M 560 0 L 680 0 L 680 140 L 600 150 L 555 100 Z" fill="url(#neighbor-grad)" opacity="0.55"/>
+        {/* Syria/Iraq to the south */}
+        <path d="M 200 340 L 600 340 L 620 380 L 180 380 Z" fill="url(#neighbor-grad)" opacity="0.6"/>
+        {/* Bosphorus strait suggestion */}
+        <path d="M 145 95 Q 160 110 180 125" stroke="#4a6580" strokeWidth="1.2" fill="none" opacity="0.7"/>
+      </g>
+    );
+    return (
+      <g>
+        <NeighborLabel x={70} y={50}>BALKANS</NeighborLabel>
+        <NeighborLabel x={620} y={60}>CAUCASUS</NeighborLabel>
+        <NeighborLabel x={400} y={370}>SYRIA · IRAQ</NeighborLabel>
+        <SeaLabel x={30} y={200}>AEGEAN</SeaLabel>
+        <SeaLabel x={330} y={60}>BLACK SEA</SeaLabel>
+        <SeaLabel x={650} y={280} anchor="end">MEDITERRANEAN</SeaLabel>
+      </g>
+    );
+  }
+
+  if (countryKey === "aurelia" || countryKey === "custom") {
+    if (layer === "base") return (
+      <g>{commonDefs}
+        <rect x="0" y="0" width="640" height="450" fill="url(#ocean-grad)"/>
+        <rect x="0" y="0" width="640" height="450" fill="url(#wave-pattern)" opacity="0.3"/>
+        <path d="M 555 145 L 640 130 L 640 320 L 580 235 Z" fill="url(#neighbor-grad)" opacity="0.6"/>
+        <path d="M 60 40 L 580 40 L 555 145 L 445 115 L 275 105 L 180 95 L 95 135 L 60 130 Z" fill="url(#neighbor-grad)" opacity="0.55"/>
+        <path d="M 130 395 L 475 410 L 500 430 L 130 430 Z" fill="url(#neighbor-grad)" opacity="0.55"/>
+        <path d="M 300 220 Q 310 280 300 330 Q 295 370 270 420" stroke="#4a6580" strokeWidth="1.3" fill="none" opacity="0.7"/>
+      </g>
+    );
+    return (
+      <g>
+        <NeighborLabel x={610} y={220} fontSize={9}>TALARAN</NeighborLabel>
+        <NeighborLabel x={320} y={85}>NORTHERN MARCHES</NeighborLabel>
+        <NeighborLabel x={300} y={425}>DUCHY OF MORAVELLE</NeighborLabel>
+        <SeaLabel x={25} y={265}>OPEN SEA</SeaLabel>
+      </g>
+    );
+  }
+
+  if (layer === "base") return <rect x="0" y="0" width="640" height="450" fill="#1e2a36"/>;
+  return null;
 }
 
 // ============================================================
@@ -597,7 +699,7 @@ function CountryMap({ state, country, onSelectRegion, selectedRegion }) {
         </filter>
       </defs>
 
-      <MapBackdrop countryKey={country.key} />
+      <MapBackdrop countryKey={country.key} layer="base" />
 
       {country.regions.map((r) => {
         const delta = regionalStatus[r.id];
@@ -623,18 +725,25 @@ function CountryMap({ state, country, onSelectRegion, selectedRegion }) {
               stroke={isSel ? "#1a1510" : "#2a2117"} strokeWidth={isSel ? "2.2" : "1.1"} />
             <path d={r.path} fill="url(#paper-tx)" opacity="0.12" style={{ pointerEvents: "none" }} />
             <g style={{ pointerEvents: "none" }}>
-              <rect x={r.labelX - 42} y={r.labelY - 6} width="84" height="12"
-                fill="#f5ecd5" opacity="0.55" rx="2"/>
+              {/* Label background: expanded in v0.7 to cover BOTH the region name
+                  AND the industry subtitle below it, so text doesn't bleed onto
+                  the region color underneath. */}
+              <rect x={r.labelX - 46} y={r.labelY - 9} width="92" height="22"
+                fill="#f5ecd5" opacity="0.78" rx="3"/>
               <text x={r.labelX} y={r.labelY} textAnchor="middle"
                 fontFamily="Fraunces, serif" fontSize="8.5" fontStyle="italic"
                 fill="#1a1510" opacity="0.95">{labelFor(r.name)}</text>
               <text x={r.labelX} y={r.labelY + 9} textAnchor="middle"
                 fontFamily="IBM Plex Sans, sans-serif" fontSize="6"
-                fill="#3a2f1f" opacity="0.7" letterSpacing="0.6">{r.industry.toUpperCase()}</text>
+                fill="#3a2f1f" opacity="0.75" letterSpacing="0.6">{r.industry.toUpperCase()}</text>
             </g>
           </g>
         );
       })}
+
+      {/* Labels layer (sea names, neighbor country names) renders AFTER regions
+          so it is never covered by a region polygon. Fixes v0.6 overlap bug. */}
+      <MapBackdrop countryKey={country.key} layer="labels" />
 
       <rect x="0" y="0" width="100%" height="100%" fill="url(#map-vignette)" style={{ pointerEvents: "none" }} />
       <g transform="translate(28 28)" style={{ pointerEvents: "none" }}>
@@ -876,7 +985,7 @@ function PanelFrame({ title, subtitle, onClose, children, wide, hideClose, tone 
 // MAIN MENU, PANELS, FLOW SCREENS
 // ============================================================
 
-function MainMenu({ onNewGame, onContinue, onHow, onRanking, onAchievements, hasSave, cheatsActive, onCheatActivated }) {
+function MainMenu({ onNewGame, onContinue, onHow, onRanking, onAchievements, onUpdatesLog, hasSave, cheatsActive, onCheatActivated }) {
   const bufferRef = useRef("");
   useEffect(() => {
     const onKey = (e) => {
@@ -947,8 +1056,18 @@ function MainMenu({ onNewGame, onContinue, onHow, onRanking, onAchievements, has
             <Wand2 size={12} /> Cheats Active
           </div>
         )}
+        {/* Updates log: low-profile button in the bottom-left. Intentionally small
+            and muted so it reads as a footer link rather than a feature. */}
+        <button onClick={onUpdatesLog}
+          className="absolute bottom-5 left-5 text-[10px] tracking-[0.22em] uppercase flex items-center gap-1.5 hover:text-amber-100 transition-colors"
+          style={{ color: "#6a5840" }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = "#a89068")}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "#6a5840")}>
+          <ScrollText size={11} strokeWidth={1.6} />
+          <span>Release Notes</span>
+        </button>
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-[10px] tracking-[0.3em] uppercase" style={{ color: "#6a5840" }}>
-          Version 0.6 &middot; A prototype
+          Version 0.7 &middot; A prototype
         </div>
       </div>
     </div>
@@ -988,22 +1107,52 @@ function GdpRanking({ ranking, onClose }) {
 function AchievementsPanel({ unlocked, onClose }) {
   const total = ACHIEVEMENTS.length;
   const done = unlocked.length;
+  const cannyCount = ACHIEVEMENTS.filter(a => a.tier === "canny").length;
+  const uncannyCount = ACHIEVEMENTS.filter(a => a.tier === "uncanny").length;
+  const cannyDone = unlocked.filter(k => ACHIEVEMENTS.find(a => a.key === k)?.tier === "canny").length;
+  const uncannyDone = unlocked.filter(k => ACHIEVEMENTS.find(a => a.key === k)?.tier === "uncanny").length;
+
+  // Tier palettes:
+  // - canny: approachable, grassy emerald.
+  // - uncanny: stranger, witchier violet.
+  const palette = {
+    canny: { border: "#4a7c5c", bgEarned: "#dcefe1", bgUnearned: "rgba(236,248,239,0.55)", tagBg: "#4a7c5c", tagFg: "#f5ecd5", label: "Canny" },
+    uncanny: { border: "#6b4a8a", bgEarned: "#ecdcf0", bgUnearned: "rgba(240,232,248,0.55)", tagBg: "#6b4a8a", tagFg: "#f5ecd5", label: "Uncanny" },
+  };
+
   return (
     <PanelFrame title="Achievements" subtitle={`${done} of ${total} earned`} onClose={onClose} wide>
+      <div className="flex items-center gap-3 mb-4 text-[11px]">
+        <div className="flex items-center gap-1.5">
+          <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: palette.canny.tagBg }} />
+          <span style={{ color: "#44403c" }}>Canny: {cannyDone} / {cannyCount}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: palette.uncanny.tagBg }} />
+          <span style={{ color: "#44403c" }}>Uncanny: {uncannyDone} / {uncannyCount}</span>
+        </div>
+      </div>
       <div className="grid grid-cols-2 gap-3">
         {ACHIEVEMENTS.map((a) => {
           const got = unlocked.includes(a.key);
           const reveal = got || !a.hidden;
+          const p = palette[a.tier] || palette.canny;
           return (
-            <div key={a.key} className="rounded-xl border-2 p-3 transition-all"
-              style={got ? { borderColor: "#7a9960", backgroundColor: "#e5f0da" }
-                : reveal ? { borderColor: "#d6d3d1", backgroundColor: "rgba(255,255,255,0.5)", opacity: 0.85 }
+            <div key={a.key} className="rounded-xl border-2 p-3 transition-all relative"
+              style={got ? { borderColor: p.border, backgroundColor: p.bgEarned }
+                : reveal ? { borderColor: "#d6d3d1", backgroundColor: p.bgUnearned, opacity: 0.85 }
                 : { borderColor: "#d6d3d1", backgroundColor: "rgba(240,235,215,0.4)" }}>
+              {reveal && (
+                <span className="absolute top-1.5 right-1.5 text-[8.5px] uppercase tracking-[0.18em] px-1.5 py-0.5 rounded font-[Fraunces]"
+                  style={{ backgroundColor: p.tagBg, color: p.tagFg, opacity: got ? 0.95 : 0.6 }}>
+                  {p.label}
+                </span>
+              )}
               <div className="flex items-start gap-3">
                 <div className="text-[28px] leading-none" style={{ filter: got ? "none" : "grayscale(1) opacity(0.5)" }}>
                   {reveal ? a.icon : "❓"}
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 pr-14">
                   <div className="font-[Fraunces] text-[14px]" style={{ color: "#1c1917" }}>
                     {reveal ? a.title : "??? Hidden"}
                   </div>
@@ -1011,7 +1160,7 @@ function AchievementsPanel({ unlocked, onClose }) {
                     {reveal ? a.description : "An uncanny milestone, yet to be discovered."}
                   </div>
                 </div>
-                {got && <Check size={16} style={{ color: "#446a32" }} />}
+                {got && <Check size={16} style={{ color: p.border }} className="absolute bottom-2 right-2" />}
               </div>
             </div>
           );
@@ -1101,6 +1250,44 @@ function CheatsPanel({ onApply, onClose }) {
   );
 }
 
+// Minimalist release-notes viewer. Entries are typed "fix" / "add" / "tune"
+// and rendered as a plain timeline so players can skim what changed between versions.
+function UpdatesLog({ onClose }) {
+  const typeStyle = {
+    fix: { label: "Fix", color: "#9a3b2a" },
+    add: { label: "New", color: "#446a32" },
+    tune: { label: "Tune", color: "#9a7a2a" },
+  };
+  return (
+    <PanelFrame title="Release Notes" subtitle="A running log of changes" onClose={onClose}>
+      <div className="space-y-5">
+        {UPDATES_LOG.map((v) => (
+          <div key={v.version} className="pb-4 border-b last:border-b-0" style={{ borderColor: "#d6d3d1" }}>
+            <div className="flex items-baseline gap-3 mb-2">
+              <div className="font-[Fraunces] text-[20px]" style={{ color: "#1c1917" }}>v{v.version}</div>
+              <div className="text-[10.5px] uppercase tracking-[0.22em]" style={{ color: "#78716c" }}>{v.date}</div>
+            </div>
+            <ul className="space-y-1.5">
+              {v.entries.map((e, i) => {
+                const t = typeStyle[e.type] || typeStyle.add;
+                return (
+                  <li key={i} className="flex items-start gap-2 text-[12.5px] leading-relaxed" style={{ color: "#292524" }}>
+                    <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] uppercase tracking-[0.15em] font-[Fraunces] flex-shrink-0"
+                      style={{ backgroundColor: `${t.color}22`, color: t.color, minWidth: "36px", textAlign: "center" }}>
+                      {t.label}
+                    </span>
+                    <span>{e.text}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </PanelFrame>
+  );
+}
+
 function ModeSelect({ onPick, onBack }) {
   return (
     <div className="fixed inset-0 bg-[#0f0c08] overflow-y-auto">
@@ -1138,7 +1325,9 @@ function ModeSelect({ onPick, onBack }) {
 
 function CountryPicker({ mode, onSelect, onBack, onCustom }) {
   const fictional = [COUNTRIES.aurelia];
-  const nonfictional = Object.values(COUNTRIES).filter(c => c.kind === "nonfiction");
+  // Filter out scenario-only countries (e.g., Turkey in v0.7) so they don't
+  // appear in the real-world picker; they live only inside the scenario flow.
+  const nonfictional = Object.values(COUNTRIES).filter(c => c.kind === "nonfiction" && !c.scenarioOnly);
   const visible = mode === "fiction" ? fictional : nonfictional;
   return (
     <div className="fixed inset-0 bg-[#0f0c08] overflow-y-auto">
@@ -1587,6 +1776,15 @@ function GameScreen({ initialDifficulty, country, scenario, restored, onExit, ch
     setActivePanel(null);
   };
 
+  // IMPORTANT: All hooks must run BEFORE any early return (Rules of Hooks).
+  // Previously useMemo sat after the gameOver early return, which caused a
+  // blank white screen because React saw a different hook count between renders.
+  const ranking = useMemo(
+    () => buildRanking(worldSnapshot, country.name, state.gdp, country.flagEmoji),
+    [worldSnapshot, country, state.gdp]
+  );
+  const userRank = ranking.findIndex(c => c.isUser) + 1;
+
   if (state.gameOver) {
     return <EndScreen victory={state.victory} state={state} country={country}
       onMenu={() => { clearSave(); onExit(); }}
@@ -1606,12 +1804,6 @@ function GameScreen({ initialDifficulty, country, scenario, restored, onExit, ch
   const debtRatio = state.debt / state.gdp;
   const selectedRegionData = selectedRegion ? country.regions.find((r) => r.id === selectedRegion) : null;
   const d = DIFFICULTIES[state.difficulty];
-
-  const ranking = useMemo(
-    () => buildRanking(worldSnapshot, country.name, state.gdp, country.flagEmoji),
-    [worldSnapshot, country, state.gdp]
-  );
-  const userRank = ranking.findIndex(c => c.isUser) + 1;
 
   return (
     <div className="min-h-screen w-full bg-[#0f1319] text-amber-50 font-[IBM_Plex_Sans] relative overflow-hidden">
@@ -2018,7 +2210,8 @@ export default function App() {
         onNewGame={() => { clearSave(); setHasSave(false); setRestored(null); setScreen("mode"); }}
         onHow={() => setScreen("how")}
         onRanking={() => setMenuPanel("ranking")}
-        onAchievements={() => setMenuPanel("achievements")} />}
+        onAchievements={() => setMenuPanel("achievements")}
+        onUpdatesLog={() => setMenuPanel("updates")} />}
 
       {screen === "how" && <HowToPlay onBack={() => setScreen("menu")} />}
 
@@ -2050,6 +2243,7 @@ export default function App() {
       {/* Menu-level panels */}
       {menuPanel === "ranking" && <GdpRanking ranking={menuRanking} onClose={() => setMenuPanel(null)} />}
       {menuPanel === "achievements" && <AchievementsPanel unlocked={unlockedAch} onClose={() => setMenuPanel(null)} />}
+      {menuPanel === "updates" && <UpdatesLog onClose={() => setMenuPanel(null)} />}
     </>
   );
 }
