@@ -108,39 +108,45 @@ const UK_REGIONS = [
 // ---------- GERMANY 2026 ----------
 // Real: Bavaria (auto/tech), Baden-Württemberg (auto/machinery - Mercedes/Porsche), NRW (industrial Ruhr),
 // Hessen (finance/Frankfurt), Berlin (tech/services/govt), Hamburg (port), East (lagging)
+// v0.7: order matters — later regions render on top. Berlin is placed LAST so the
+// surrounding "Eastern Germany" polygon (which used to swallow it) can't hide it.
+// Eastern Germany's path has also been reshaped to carve out the Berlin rectangle.
 const GERMANY_REGIONS = [
-  { id: "bavaria", name: "Bavaria", industry: "Automotive & Technology",
-    path: "M 280 260 L 400 250 L 430 340 L 340 370 L 270 340 Z",
-    labelX: 345, labelY: 305, share: 0.18,
-    sensitivity: { tariff: 0.9, minWage: -0.5, rate: -0.8, subsidyKey: "manufacturing" } },
-  { id: "bw", name: "Baden-Württemberg", industry: "Automotive & Engineering",
-    path: "M 180 260 L 280 260 L 270 340 L 200 340 L 170 310 Z",
-    labelX: 225, labelY: 300, share: 0.15,
-    sensitivity: { tariff: 1.0, minWage: -0.5, rate: -0.9, subsidyKey: "manufacturing" } },
   { id: "nrw", name: "North Rhine-Westphalia", industry: "Heavy Industry & Chemicals",
     path: "M 100 150 L 220 145 L 220 230 L 120 220 Z",
     labelX: 160, labelY: 190, share: 0.22,
     sensitivity: { tariff: 0.8, minWage: -0.6, rate: -0.9, subsidyKey: "manufacturing" } },
-  { id: "hessen", name: "Hessen", industry: "Finance & Services",
-    path: "M 220 230 L 290 220 L 290 260 L 220 260 Z",
-    labelX: 255, labelY: 245, share: 0.09,
-    sensitivity: { tariff: -0.3, minWage: -0.2, rate: -1.1, subsidyKey: "services" } },
-  { id: "berlin", name: "Berlin", industry: "Tech & Services",
-    path: "M 360 145 L 395 140 L 400 175 L 365 180 Z",
-    labelX: 380, labelY: 160, share: 0.05,
-    sensitivity: { tariff: -0.2, minWage: -0.2, rate: -1.0, subsidyKey: "services" } },
   { id: "hamburg", name: "Hamburg & North", industry: "Shipping & Trade",
     path: "M 200 60 L 360 60 L 395 140 L 360 145 L 220 145 L 220 120 Z",
     labelX: 280, labelY: 100, share: 0.12,
     sensitivity: { tariff: -1.0, minWage: -0.3, rate: -0.4, subsidyKey: "trade" } },
+  { id: "hessen", name: "Hessen", industry: "Finance & Services",
+    path: "M 220 230 L 290 220 L 290 260 L 220 260 Z",
+    labelX: 255, labelY: 245, share: 0.09,
+    sensitivity: { tariff: -0.3, minWage: -0.2, rate: -1.1, subsidyKey: "services" } },
+  { id: "bw", name: "Baden-Württemberg", industry: "Automotive & Engineering",
+    path: "M 180 260 L 280 260 L 270 340 L 200 340 L 170 310 Z",
+    labelX: 225, labelY: 300, share: 0.15,
+    sensitivity: { tariff: 1.0, minWage: -0.5, rate: -0.9, subsidyKey: "manufacturing" } },
+  { id: "bavaria", name: "Bavaria", industry: "Automotive & Technology",
+    path: "M 280 260 L 400 250 L 430 340 L 340 370 L 270 340 Z",
+    labelX: 345, labelY: 305, share: 0.18,
+    sensitivity: { tariff: 0.9, minWage: -0.5, rate: -0.8, subsidyKey: "manufacturing" } },
+  // Eastern Germany: path now carves OUT the Berlin rectangle so Berlin sits in its own hole.
+  // Old path swept from (290,220) up to (395,140), swallowing Berlin's location.
   { id: "east", name: "Eastern Germany", industry: "Developing Industrial & Agriculture",
-    path: "M 290 220 L 395 140 L 400 175 L 400 250 L 280 260 L 290 260 Z",
-    labelX: 340, labelY: 210, share: 0.11,
+    path: "M 290 220 L 360 145 L 360 180 L 400 180 L 400 175 L 400 250 L 280 260 L 290 260 Z",
+    labelX: 335, labelY: 225, share: 0.11,
     sensitivity: { tariff: 0.4, minWage: -0.6, rate: -0.5, subsidyKey: "manufacturing" } },
   { id: "saxon", name: "Saxony", industry: "Automotive & Tech",
     path: "M 400 175 L 455 185 L 460 230 L 400 250 Z",
     labelX: 430, labelY: 215, share: 0.08,
     sensitivity: { tariff: 0.7, minWage: -0.5, rate: -0.7, subsidyKey: "manufacturing" } },
+  // Berlin renders LAST so it always sits on top of its neighbors.
+  { id: "berlin", name: "Berlin", industry: "Tech & Services",
+    path: "M 360 145 L 400 140 L 405 180 L 360 182 Z",
+    labelX: 382, labelY: 163, share: 0.05,
+    sensitivity: { tariff: -0.2, minWage: -0.2, rate: -1.0, subsidyKey: "services" } },
 ];
 
 // ---------- FRANCE 2026 ----------
@@ -296,6 +302,42 @@ const ITALY_REGIONS = [
     sensitivity: { tariff: 0.2, minWage: -0.5, rate: -0.3, subsidyKey: "agriculture" } },
 ];
 
+// ---------- TURKEY 2021 ----------
+// Added in v0.7 for the historical scenario "Turkish Currency Crisis."
+// Real: Istanbul (finance/services/trade), Marmara industrial belt, Ankara (government),
+// Aegean (tourism/agri), Mediterranean coast (tourism/agri/petrochem),
+// Central Anatolia (agri), Eastern Anatolia (lagging).
+const TURKEY_REGIONS = [
+  { id: "istanbul", name: "Istanbul", industry: "Finance & Trade",
+    path: "M 140 110 L 210 105 L 215 160 L 145 165 Z",
+    labelX: 178, labelY: 135, share: 0.30,
+    sensitivity: { tariff: -0.6, minWage: -0.3, rate: -1.2, subsidyKey: "services" } },
+  { id: "marmara", name: "Marmara Industrial", industry: "Manufacturing & Automotive",
+    path: "M 145 165 L 275 160 L 280 215 L 150 220 Z",
+    labelX: 210, labelY: 190, share: 0.18,
+    sensitivity: { tariff: 0.8, minWage: -0.5, rate: -0.9, subsidyKey: "manufacturing" } },
+  { id: "aegean", name: "Aegean Coast", industry: "Tourism & Agriculture",
+    path: "M 60 180 L 150 170 L 150 275 L 70 280 Z",
+    labelX: 110, labelY: 225, share: 0.10,
+    sensitivity: { tariff: -0.2, minWage: -0.4, rate: -0.5, subsidyKey: "services" } },
+  { id: "ankara", name: "Ankara & Central", industry: "Government & Services",
+    path: "M 280 215 L 420 215 L 420 270 L 280 275 Z",
+    labelX: 350, labelY: 245, share: 0.14,
+    sensitivity: { tariff: -0.1, minWage: -0.2, rate: -0.8, subsidyKey: "services" } },
+  { id: "mediterranean", name: "Mediterranean", industry: "Tourism & Petrochem",
+    path: "M 150 275 L 425 275 L 430 325 L 160 330 Z",
+    labelX: 290, labelY: 305, share: 0.10,
+    sensitivity: { tariff: -0.3, minWage: -0.4, rate: -0.6, subsidyKey: "services" } },
+  { id: "centralAnatolia", name: "Central Anatolia", industry: "Agriculture",
+    path: "M 275 160 L 430 155 L 420 215 L 280 215 Z",
+    labelX: 350, labelY: 190, share: 0.08,
+    sensitivity: { tariff: 0.3, minWage: -0.6, rate: -0.3, subsidyKey: "agriculture" } },
+  { id: "eastAnatolia", name: "Eastern Anatolia", industry: "Agriculture & Mining",
+    path: "M 420 155 L 560 150 L 565 270 L 420 270 Z",
+    labelX: 490, labelY: 210, share: 0.10,
+    sensitivity: { tariff: 0.2, minWage: -0.7, rate: -0.4, subsidyKey: "mining" } },
+];
+
 // ---------- COUNTRY REGISTRY ----------
 export const COUNTRIES = {
   aurelia: {
@@ -360,6 +402,18 @@ export const COUNTRIES = {
     startingGdp: 2300, baseTrend: 0.007,
     flavor: "Wealthy industrial North, struggling South. High debt, slow growth, but world-class luxury, manufacturing, and tourism.",
     contextTaxRate: 0.42, contextRate: 0.035, contextDebt: 3200,
+  },
+  // Turkey is host country for the v0.7 historical scenario only. It is tagged
+  // `scenarioOnly: true` so the real-world country picker skips it. When the
+  // Pass 2 world map arrives, Turkey will also become a full playable country.
+  turkey2023: {
+    key: "turkey2023", name: "Turkey", kind: "nonfiction", flagEmoji: "🇹🇷",
+    subtitle: "2021 · Currency in free fall",
+    regions: TURKEY_REGIONS, mapViewBox: "0 0 680 380",
+    startingGdp: 820, baseTrend: 0.035,
+    flavor: "Emerging market caught between growth ambition and monetary orthodoxy, with the lira sliding and imports repriced every week.",
+    contextTaxRate: 0.22, contextRate: 0.19, contextDebt: 350,
+    scenarioOnly: true,
   },
 };
 
@@ -459,6 +513,19 @@ export const HISTORICAL_SCENARIOS = {
     winStreak: 5, difficultyTier: "minister",
     winConditionText: "Recover from the pandemic: unemployment under 5% while keeping inflation contained below 4%.",
     primaryLesson: "The pandemic validated massive fiscal response. CARES and later stimulus prevented a depression-scale collapse. But the bill came due as inflation in 2021–2023, teaching the limits of stimulus.",
+  },
+  turkey2021: {
+    key: "turkey2021", name: "Turkish Currency Crisis",
+    year: 2021, startYear: 2021, period: "2021–2023",
+    flavor: "Inflation has broken 20% and the lira is in free fall, but the government keeps cutting interest rates on the theory that lower rates will tame inflation. Imports are repriced weekly. Savers are fleeing into dollars. Can you restore orthodox policy credibility before expectations fully unanchor?",
+    countryKey: "turkey2023",
+    startOverrides: {
+      gdpGrowth: 0.048, unemployment: 0.11, inflation: 0.22,
+      interestRate: 0.14, approval: 42, taxRate: 0.22, govSpendingRate: 0.24,
+    },
+    winStreak: 5, difficultyTier: "autocrat",
+    winConditionText: "Restore credibility: five consecutive quarters of inflation under 10% without unemployment spiking above 14%.",
+    primaryLesson: "Turkey in 2021–2023 illustrated what happens when a central bank abandons the Taylor principle: cutting rates as inflation rises accelerates currency depreciation, which imports more inflation, a self-reinforcing loop that only aggressive tightening and fiscal discipline can break.",
   },
 };
 
