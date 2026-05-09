@@ -24,18 +24,24 @@ import { ComposableMap, Geographies, Geography, Marker } from "react-simple-maps
 // ============================================================
 
 const DIFFICULTIES = {
+  // Tutor — internal difficulty used exclusively by Baby Mode. Not shown in the
+  // standard difficulty picker, since Baby Mode has its own dedicated entry.
+  tutor: { key: "tutor", name: "Beginner", tagline: "Easiest", color: "#9ab093", icon: Sprout,
+    description: "Built for first-timers. Wide bands, almost no surprises, simplified controls.",
+    bandMultiplier: 3.0, crisisChance: 0.0, startingDebtMult: 0.25,
+    startingApproval: 92, winStreak: 3, trend: 0.030, drift: 0.001, hidden: true },
   advisor: { key: "advisor", name: "Advisor", tagline: "Friendly", color: "#7a9960", icon: Shield,
-    description: "Generous bands, gentle shocks. Designed for first-time players.",
-    bandMultiplier: 2.0, crisisChance: 0.04, startingDebtMult: 0.5,
-    startingApproval: 78, winStreak: 4, trend: 0.028, drift: 0.003 },
+    description: "Generous bands, very gentle shocks. A relaxed introduction.",
+    bandMultiplier: 2.6, crisisChance: 0.02, startingDebtMult: 0.4,
+    startingApproval: 85, winStreak: 3, trend: 0.030, drift: 0.002 },
   minister: { key: "minister", name: "Minister", tagline: "Standard", color: "#d4a94a", icon: Flag,
     description: "Comfortable bands, occasional crises. The normal way to play.",
-    bandMultiplier: 1.3, crisisChance: 0.10, startingDebtMult: 0.9,
-    startingApproval: 65, winStreak: 6, trend: 0.026, drift: 0.006 },
+    bandMultiplier: 1.7, crisisChance: 0.07, startingDebtMult: 0.7,
+    startingApproval: 72, winStreak: 5, trend: 0.028, drift: 0.004 },
   chancellor: { key: "chancellor", name: "Chancellor", tagline: "Tight", color: "#c77a3f", icon: Swords,
-    description: "Narrower windows, more frequent shocks.",
-    bandMultiplier: 0.9, crisisChance: 0.15, startingDebtMult: 1.3,
-    startingApproval: 55, winStreak: 8, trend: 0.023, drift: 0.010 },
+    description: "Narrower windows, more frequent shocks. For experienced players.",
+    bandMultiplier: 1.15, crisisChance: 0.12, startingDebtMult: 1.1,
+    startingApproval: 62, winStreak: 7, trend: 0.024, drift: 0.008 },
   autocrat: { key: "autocrat", name: "Autocrat", tagline: "Brutal", color: "#a83838", icon: Flame,
     description: "Unforgiving. For players who want mastery.",
     bandMultiplier: 0.65, crisisChance: 0.22, startingDebtMult: 1.8,
@@ -446,13 +452,15 @@ function MapBackdrop({ countryKey, layer = "base" }) {
 
   // Small helper: render an ocean/sea label with a soft parchment-tone halo
   // so it stays legible even when it sits near a region edge.
-  const SeaLabel = ({ x, y, anchor = "start", children, fontSize = 11 }) => (
+  const SeaLabel = ({ x, y, anchor = "start", children, fontSize = 12 }) => (
     <g style={{ pointerEvents: "none" }}>
-      <text x={x} y={y} fontFamily="Fraunces, serif" fontSize={fontSize + 2} fontStyle="italic"
-        fill="#0f1319" opacity="0.5" textAnchor={anchor} stroke="#0f1319" strokeWidth="3"
-        strokeLinejoin="round" paintOrder="stroke">{children}</text>
+      {/* Strong dark halo so the label survives any drop-shadow bleed from a
+          neighboring region. paintOrder=stroke draws the stroke before fill. */}
       <text x={x} y={y} fontFamily="Fraunces, serif" fontSize={fontSize} fontStyle="italic"
-        fill="#a8c3d8" opacity="0.85" textAnchor={anchor}>{children}</text>
+        fill="#0a1018" textAnchor={anchor} stroke="#0a1018" strokeWidth="5"
+        strokeLinejoin="round" paintOrder="stroke" opacity="0.95">{children}</text>
+      <text x={x} y={y} fontFamily="Fraunces, serif" fontSize={fontSize} fontStyle="italic"
+        fill="#c4d8e8" opacity="1" textAnchor={anchor} fontWeight="500">{children}</text>
     </g>
   );
 
@@ -659,32 +667,224 @@ function MapBackdrop({ countryKey, layer = "base" }) {
 // COUNTRY MAP
 // ============================================================
 
-function CountryMap({ state, country, onSelectRegion, selectedRegion }) {
-  const [hoverId, setHoverId] = useState(null);
+// ============================================================
+// COUNTRY MAP — v0.8.1
+// ============================================================
+//
+// Renders a country's region map. Two paths:
+//
+// 1) GEO PATH (preferred). If the country has a `geoConfig`, fetches real
+//    subnational geometry from the configured URL via react-simple-maps and
+//    renders each admin division using its true geographic shape. Each
+//    admin division is colored according to which of our internal economic
+//    regions it belongs to (see countryGeo.js for the mapping).
+//
+// 2) FALLBACK PATH. If the country has no geoConfig, or the geometry fetch
+//    fails, falls back to the original hand-drawn SVG paths stored on each
+//    region. The game stays fully playable.
+//
+// Hover and selection state operate on REGION id, not on individual admin
+// divisions. So when you hover over Bavaria, every state in our "South"
+// region (Bavaria + Baden-Württemberg) lights up together.
 
-  const regionalStatus = useMemo(() => {
-    const map = {};
-    for (const r of country.regions) {
-      const rateEffect = r.sensitivity.rate * (state.interestRate - 0.03);
-      const tariffEffect = r.sensitivity.tariff * state.tariff;
-      const minWageEffect = r.sensitivity.minWage * Math.max(0, state.minWage - 0.45);
-      const subsidy = state.subsidy === r.sensitivity.subsidyKey ? 0.03 : 0;
-      const base = state.gdpGrowth - 0.025;
-      map[r.id] = base + rateEffect + tariffEffect + minWageEffect + subsidy;
+function CountryMapGeo({ state, country, onSelectRegion, selectedRegion, regionalStatus, colorFor }) {
+  const [hoverRegionId, setHoverRegionId] = useState(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const cfg = country.geoConfig;
+
+  // Build a fast lookup from region id to economic region object, used for
+  // label placement and tooltip data.
+  const regionsById = useMemo(() => {
+    const m = {};
+    for (const r of country.regions) m[r.id] = r;
+    return m;
+  }, [country]);
+
+  // Track which regions we've actually placed admin divisions for. For label
+  // placement we use the centroid of the FIRST admin division of each region.
+  // Computed inside the Geographies callback, then surfaced via state.
+  const [regionLabels, setRegionLabels] = useState({});
+
+  // If the geometry load fails (network/CORS/bad URL), we surface that and
+  // render the fallback hand-drawn map outside this component.
+  if (loadFailed) {
+    return <CountryMapFallback state={state} country={country}
+      onSelectRegion={onSelectRegion} selectedRegion={selectedRegion}
+      regionalStatus={regionalStatus} colorFor={colorFor} />;
+  }
+
+  return (
+    <div className="relative w-full h-full" style={{ minHeight: 360 }}>
+      <ComposableMap
+        projection={cfg.projection || "geoMercator"}
+        projectionConfig={cfg.projectionConfig || {}}
+        width={900} height={560}
+        style={{ width: "100%", height: "auto", display: "block", background: "#1e3247" }}>
+        {/* Wave overlay for the surrounding sea */}
+        <defs>
+          <pattern id="cm-waves" x="0" y="0" width="60" height="14" patternUnits="userSpaceOnUse">
+            <path d="M 0 7 Q 15 0 30 7 Q 45 14 60 7" stroke="#4a6580" strokeWidth="0.6" fill="none" opacity="0.5"/>
+          </pattern>
+          <pattern id="cm-paper" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse">
+            <rect width="4" height="4" fill="#e8dcc0" opacity="0" />
+            <circle cx="1" cy="1" r="0.3" fill="#c9b890" opacity="0.4" />
+          </pattern>
+        </defs>
+        <rect x="0" y="0" width="900" height="560" fill="url(#cm-waves)" opacity="0.45" />
+
+        <Geographies geography={cfg.url}
+          parseGeographies={(geos) => {
+            // After geographies are parsed, compute label centroids per
+            // economic region. We pick the largest admin division's centroid
+            // to anchor the label in the most visually obvious place.
+            try {
+              const labels = {};
+              const sizesByRegion = {};
+              for (const g of geos) {
+                const adminName = g.properties[cfg.propertyKey];
+                const regionId = cfg.adminToRegion[adminName];
+                if (!regionId) continue;
+                const bbox = pathBoundsApprox(g);
+                const size = bbox ? bbox.size : 0;
+                if (!sizesByRegion[regionId] || size > sizesByRegion[regionId]) {
+                  sizesByRegion[regionId] = size;
+                  labels[regionId] = bbox?.center;
+                }
+              }
+              // Schedule state update on next tick to avoid in-render setState.
+              setTimeout(() => setRegionLabels(labels), 0);
+            } catch (e) { /* non-fatal */ }
+            return geos;
+          }}>
+          {({ geographies }) => {
+            if (!geographies || geographies.length === 0) return null;
+            return (
+              <>
+                {geographies.map((geo) => {
+                  const adminName = geo.properties[cfg.propertyKey];
+                  const regionId = cfg.adminToRegion[adminName];
+                  // Admin divisions outside our mapping (e.g., overseas
+                  // territories we are not modelling) render as muted land
+                  // without interaction.
+                  if (!regionId) {
+                    return <Geography key={geo.rsmKey} geography={geo}
+                      style={{ default: { fill: "#7d6a4a", stroke: "#3a2f1f", strokeWidth: 0.4, outline: "none" },
+                               hover: { fill: "#7d6a4a", stroke: "#3a2f1f", strokeWidth: 0.4, outline: "none" },
+                               pressed: { fill: "#7d6a4a", stroke: "#3a2f1f", strokeWidth: 0.4, outline: "none" } }} />;
+                  }
+                  const delta = regionalStatus[regionId];
+                  const fill = colorFor(delta);
+                  const isHover = hoverRegionId === regionId;
+                  const isSel = selectedRegion === regionId;
+                  return (
+                    <Geography key={geo.rsmKey} geography={geo}
+                      onMouseEnter={() => setHoverRegionId(regionId)}
+                      onMouseLeave={() => setHoverRegionId(null)}
+                      onClick={() => onSelectRegion(regionId)}
+                      style={{
+                        default: { fill, stroke: "#2a2117", strokeWidth: 0.6, outline: "none",
+                          filter: isSel ? "brightness(1.1)" : "none" },
+                        hover:   { fill, stroke: "#1a1510", strokeWidth: 1.2, outline: "none",
+                          filter: "brightness(1.12) drop-shadow(0 2px 3px rgba(0,0,0,0.5))",
+                          cursor: "pointer" },
+                        pressed: { fill, stroke: "#1a1510", strokeWidth: 1.2, outline: "none" },
+                      }} />
+                  );
+                })}
+
+                {/* Region labels — placed at each region's largest admin
+                    division's centroid, drawn AFTER all admin shapes so they
+                    sit on top. */}
+                {Object.entries(regionLabels).map(([rid, ll]) => {
+                  if (!ll) return null;
+                  const r = regionsById[rid];
+                  if (!r) return null;
+                  return (
+                    <Marker key={rid} coordinates={ll}
+                      style={{ default: { pointerEvents: "none" } }}>
+                      <g>
+                        <rect x={-46} y={-9} width="92" height="22"
+                          fill="#f5ecd5" opacity="0.85" rx="3" />
+                        <text textAnchor="middle" y={0} fontFamily="Fraunces, serif"
+                          fontSize="8.5" fontStyle="italic" fill="#1a1510" opacity="0.95">
+                          {r.name}
+                        </text>
+                        <text textAnchor="middle" y={9} fontFamily="IBM Plex Sans, sans-serif"
+                          fontSize="6" fill="#3a2f1f" opacity="0.75" letterSpacing="0.6">
+                          {r.industry.toUpperCase()}
+                        </text>
+                      </g>
+                    </Marker>
+                  );
+                })}
+              </>
+            );
+          }}
+        </Geographies>
+      </ComposableMap>
+
+      {/* Country title bar overlay, top-left */}
+      <div className="absolute top-3 left-3 pointer-events-none">
+        <div className="font-[Fraunces] text-[11px] italic" style={{ color: "#c9a961", opacity: 0.9 }}>
+          Regions of
+        </div>
+        <div className="font-[Fraunces] text-[16px] tracking-[0.14em]" style={{ color: "#e8dcc0" }}>
+          {country.name.toUpperCase()}
+        </div>
+      </div>
+
+      {/* Loading note while geographies haven't arrived yet. The Geographies
+          component renders nothing until fetch resolves, so this stays
+          visible briefly on first open. */}
+      <NetworkSentinel cfg={cfg} onFail={() => setLoadFailed(true)} />
+    </div>
+  );
+}
+
+// Lightweight helper: compute approximate bounding box and centroid of a
+// geography feature in geographic coordinates. Good enough for label
+// placement; not a substitute for d3.geoCentroid.
+function pathBoundsApprox(geo) {
+  if (!geo || !geo.geometry) return null;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  const visit = (coords) => {
+    if (typeof coords[0] === "number") {
+      const [x, y] = coords;
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+    } else {
+      for (const c of coords) visit(c);
     }
-    return map;
-  }, [state, country]);
-
-  const colorFor = (delta) => {
-    if (delta > 0.02) return "#7a9960";
-    if (delta > 0.005) return "#a69866";
-    if (delta > -0.01) return "#94856a";
-    if (delta > -0.025) return "#96654a";
-    return "#7a4236";
   };
+  visit(geo.geometry.coordinates);
+  if (!isFinite(minX)) return null;
+  return {
+    bounds: [[minX, minY], [maxX, maxY]],
+    center: [(minX + maxX) / 2, (minY + maxY) / 2],
+    size: (maxX - minX) * (maxY - minY),
+  };
+}
 
+// Simple network sentinel: pings the geometry URL with a HEAD-style fetch
+// so we can detect outright failures and fall back. react-simple-maps does
+// not surface fetch errors directly, so this provides a fallback hook.
+function NetworkSentinel({ cfg, onFail }) {
+  useEffect(() => {
+    if (!cfg?.url) return;
+    let cancelled = false;
+    fetch(cfg.url, { method: "GET" })
+      .then(r => { if (!r.ok && !cancelled) onFail(); })
+      .catch(() => { if (!cancelled) onFail(); });
+    return () => { cancelled = true; };
+  }, [cfg?.url, onFail]);
+  return null;
+}
+
+// Fallback: the original hand-drawn map. Kept verbatim for any country
+// without a geoConfig (Aurelia, custom builds, or when fetch fails).
+function CountryMapFallback({ state, country, onSelectRegion, selectedRegion, regionalStatus, colorFor }) {
+  const [hoverId, setHoverId] = useState(null);
   const labelFor = (name) => name.length > 18 ? name.replace(/\s*\([^)]+\)/, "").slice(0, 16) : name;
-
   return (
     <svg viewBox={country.mapViewBox} className="w-full h-full block">
       <defs>
@@ -727,9 +927,6 @@ function CountryMap({ state, country, onSelectRegion, selectedRegion }) {
               stroke={isSel ? "#1a1510" : "#2a2117"} strokeWidth={isSel ? "2.2" : "1.1"} />
             <path d={r.path} fill="url(#paper-tx)" opacity="0.12" style={{ pointerEvents: "none" }} />
             <g style={{ pointerEvents: "none" }}>
-              {/* Label background: expanded in v0.7 to cover BOTH the region name
-                  AND the industry subtitle below it, so text doesn't bleed onto
-                  the region color underneath. */}
               <rect x={r.labelX - 46} y={r.labelY - 9} width="92" height="22"
                 fill="#f5ecd5" opacity="0.78" rx="3"/>
               <text x={r.labelX} y={r.labelY} textAnchor="middle"
@@ -743,17 +940,47 @@ function CountryMap({ state, country, onSelectRegion, selectedRegion }) {
         );
       })}
 
-      {/* Labels layer (sea names, neighbor country names) renders AFTER regions
-          so it is never covered by a region polygon. Fixes v0.6 overlap bug. */}
-      <MapBackdrop countryKey={country.key} layer="labels" />
-
       <rect x="0" y="0" width="100%" height="100%" fill="url(#map-vignette)" style={{ pointerEvents: "none" }} />
       <g transform="translate(28 28)" style={{ pointerEvents: "none" }}>
         <text fontFamily="Fraunces, serif" fontSize="12" fontStyle="italic" fill="#c9a961" opacity="0.9">{country.kind === "fiction" ? "Domains of" : "Regions of"}</text>
         <text y="17" fontFamily="Fraunces, serif" fontSize="17" fill="#e8dcc0" letterSpacing="1.4">{country.name.toUpperCase()}</text>
       </g>
+      <MapBackdrop countryKey={country.key} layer="labels" />
     </svg>
   );
+}
+
+// Public CountryMap component — picks geo or fallback path based on country.geoConfig.
+function CountryMap({ state, country, onSelectRegion, selectedRegion }) {
+  const regionalStatus = useMemo(() => {
+    const map = {};
+    for (const r of country.regions) {
+      const rateEffect = r.sensitivity.rate * (state.interestRate - 0.03);
+      const tariffEffect = r.sensitivity.tariff * state.tariff;
+      const minWageEffect = r.sensitivity.minWage * Math.max(0, state.minWage - 0.45);
+      const subsidy = state.subsidy === r.sensitivity.subsidyKey ? 0.03 : 0;
+      const base = state.gdpGrowth - 0.025;
+      map[r.id] = base + rateEffect + tariffEffect + minWageEffect + subsidy;
+    }
+    return map;
+  }, [state, country]);
+
+  const colorFor = (delta) => {
+    if (delta > 0.02) return "#7a9960";
+    if (delta > 0.005) return "#a69866";
+    if (delta > -0.01) return "#94856a";
+    if (delta > -0.025) return "#96654a";
+    return "#7a4236";
+  };
+
+  if (country.geoConfig) {
+    return <CountryMapGeo state={state} country={country}
+      onSelectRegion={onSelectRegion} selectedRegion={selectedRegion}
+      regionalStatus={regionalStatus} colorFor={colorFor} />;
+  }
+  return <CountryMapFallback state={state} country={country}
+    onSelectRegion={onSelectRegion} selectedRegion={selectedRegion}
+    regionalStatus={regionalStatus} colorFor={colorFor} />;
 }
 
 // ============================================================
@@ -781,17 +1008,8 @@ function MenuBackdrop() {
           <stop offset="0%" stopColor="#c9a961" stopOpacity="0.22" />
           <stop offset="100%" stopColor="#c9a961" stopOpacity="0" />
         </radialGradient>
-        <linearGradient id="aurora" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#4a7fa8" stopOpacity="0" />
-          <stop offset="50%" stopColor="#6a9fc8" stopOpacity="0.25" />
-          <stop offset="100%" stopColor="#4a7fa8" stopOpacity="0" />
-        </linearGradient>
       </defs>
       <rect x="0" y="0" width="1440" height="900" fill="url(#m-sky)" />
-      <ellipse cx="720" cy="180" rx="900" ry="70" fill="url(#aurora)">
-        <animate attributeName="cx" values="600;840;600" dur="30s" repeatCount="indefinite"/>
-        <animate attributeName="ry" values="70;90;70" dur="20s" repeatCount="indefinite"/>
-      </ellipse>
       <g opacity="0.75">
         <ellipse cx="300" cy="200" rx="300" ry="55" fill="url(#cloud-soft)">
           <animate attributeName="cx" values="-300;300;1740" dur="60s" repeatCount="indefinite"/>
@@ -987,7 +1205,7 @@ function PanelFrame({ title, subtitle, onClose, children, wide, hideClose, tone 
 // MAIN MENU, PANELS, FLOW SCREENS
 // ============================================================
 
-function MainMenu({ onNewGame, onContinue, onHow, onRanking, onAchievements, onUpdatesLog, hasSave, cheatsActive, onCheatActivated }) {
+function MainMenu({ onNewGame, onBabyMode, onContinue, onHow, onRanking, onAchievements, onUpdatesLog, hasSave, cheatsActive, onCheatActivated }) {
   const bufferRef = useRef("");
   useEffect(() => {
     const onKey = (e) => {
@@ -1027,6 +1245,22 @@ function MainMenu({ onNewGame, onContinue, onHow, onRanking, onAchievements, onU
               <Crown size={16} style={{ color: "#c9a961" }} />
               <span className="font-[Fraunces] text-[17px] tracking-[0.18em] uppercase" style={{ color: "#f2ead7" }}>New Campaign</span>
               <ChevronRight size={14} style={{ color: "#c9a961" }} className="group-hover:translate-x-1 transition-transform" />
+            </div>
+          </button>
+          {/* Baby Mode — soft sage tone to read as the gentler option without
+              shouting. Skips difficulty selection and runs a simplified UI. */}
+          <button onClick={onBabyMode}
+            className="group rounded-xl border-2 py-3 transition-all duration-200 hover:scale-[1.04] hover:-translate-y-1"
+            style={{ borderColor: "#9ab09366", backgroundColor: "rgba(154, 176, 147, 0.08)" }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#9ab093"; e.currentTarget.style.backgroundColor = "rgba(154, 176, 147, 0.18)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#9ab09366"; e.currentTarget.style.backgroundColor = "rgba(154, 176, 147, 0.08)"; }}>
+            <div className="flex items-center justify-center gap-3">
+              <Sprout size={14} style={{ color: "#9ab093" }} />
+              <span className="font-[Fraunces] text-[14px] tracking-[0.18em] uppercase" style={{ color: "#dde6d8" }}>Baby Mode</span>
+              <ChevronRight size={12} style={{ color: "#9ab093" }} className="group-hover:translate-x-1 transition-transform" />
+            </div>
+            <div className="text-[9.5px] uppercase tracking-[0.22em] mt-0.5" style={{ color: "#7c9276" }}>
+              Simplified · For new players
             </div>
           </button>
           <div className="grid grid-cols-3 gap-2">
@@ -1069,7 +1303,7 @@ function MainMenu({ onNewGame, onContinue, onHow, onRanking, onAchievements, onU
           <span>Release Notes</span>
         </button>
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-[10px] tracking-[0.3em] uppercase" style={{ color: "#6a5840" }}>
-          Version 0.7.1 &middot; A prototype
+          Version 0.8.1 &middot; A prototype
         </div>
       </div>
     </div>
@@ -1410,7 +1644,7 @@ function WorldMap({ onSelectCountry, highlightedKey }) {
 
       <ComposableMap
         projection="geoNaturalEarth1"
-        projectionConfig={{ scale: 200, center: [10, 12] }}
+        projectionConfig={{ scale: 245, center: [12, 22] }}
         width={1400}
         height={700}
         style={{ width: "100%", height: "auto", display: "block" }}>
@@ -1562,15 +1796,15 @@ function CountryPicker({ mode, onSelect, onBack, onCustom }) {
     return (
       <div className="fixed inset-0 bg-[#0f0c08] overflow-hidden">
         <MenuBackdrop />
-        <div className="relative z-10 h-full flex flex-col items-center p-6 animate-[fadeIn_0.4s_ease-out]">
-          <div className="text-center mb-4">
-            <div className="text-[11px] uppercase tracking-[0.4em] mb-2" style={{ color: "#c9a961" }}>Select a nation</div>
-            <h2 className="font-[Fraunces] text-[34px]" style={{ color: "#f2ead7" }}>Real World · 2026</h2>
-            <div className="text-[11px] italic mt-1" style={{ color: "#a89068" }}>
-              The world's top 30 economies. Gold markers are playable today; stone markers are info-only for now.
+        <div className="relative z-10 h-full flex flex-col items-center px-4 py-3 animate-[fadeIn_0.4s_ease-out]">
+          <div className="text-center mb-2">
+            <div className="text-[10px] uppercase tracking-[0.4em] mb-1" style={{ color: "#c9a961" }}>Select a nation</div>
+            <h2 className="font-[Fraunces] text-[26px] leading-tight" style={{ color: "#f2ead7" }}>Real World · 2026</h2>
+            <div className="text-[10.5px] italic mt-0.5" style={{ color: "#a89068" }}>
+              The world's top 30 economies. Gold countries are playable today; muted brass are info-only for now.
             </div>
           </div>
-          <div className="relative w-full max-w-[1400px] flex-1 flex items-center justify-center">
+          <div className="relative w-full max-w-[1700px] flex-1 flex items-center justify-center">
             <div className="w-full relative">
               <div className="rounded-2xl border-2 border-amber-900/40 overflow-hidden"
                 style={{ boxShadow: "0 0 0 1px #c9a96133 inset, 0 20px 60px rgba(0,0,0,0.6)" }}>
@@ -1584,7 +1818,7 @@ function CountryPicker({ mode, onSelect, onBack, onCustom }) {
               )}
             </div>
           </div>
-          <div className="flex items-center justify-between w-full max-w-[1400px] mt-3">
+          <div className="flex items-center justify-between w-full max-w-[1700px] mt-3">
             <button onClick={onBack} className="text-[11px] uppercase tracking-[0.2em] hover:text-amber-100 transition-colors" style={{ color: "#a89068" }}>&larr; Back</button>
             <div className="text-[10px] flex items-center gap-4" style={{ color: "#a89068" }}>
               <span className="flex items-center gap-1.5">
@@ -1766,7 +2000,7 @@ function DifficultySelect({ onSelect, onBack }) {
           <h2 className="font-[Fraunces] text-[40px]" style={{ color: "#f2ead7" }}>Difficulty</h2>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-[1100px] w-full">
-          {Object.values(DIFFICULTIES).map((d) => {
+          {Object.values(DIFFICULTIES).filter(d => !d.hidden).map((d) => {
             const Icon = d.icon;
             return (
               <button key={d.key} onClick={() => onSelect(d.key)}
@@ -1916,7 +2150,7 @@ function EndScreen({ victory, state, country, onMenu, onReplay }) {
 // GAME SCREEN
 // ============================================================
 
-function GameScreen({ initialDifficulty, country, scenario, restored, onExit, cheatsActive, unlockedAch, setUnlockedAch }) {
+function GameScreen({ initialDifficulty, country, scenario, restored, onExit, cheatsActive, babyMode, unlockedAch, setUnlockedAch }) {
   const [state, setState] = useState(restored?.state || getInitialState(initialDifficulty, country, scenario));
   const [policies, setPolicies] = useState(restored?.policies || {
     taxRate: state.taxRate, govSpendingRate: state.govSpendingRate,
@@ -2095,7 +2329,15 @@ function GameScreen({ initialDifficulty, country, scenario, restored, onExit, ch
             </div>
             <div className="leading-tight">
               <div className="font-[Fraunces] text-[16px] text-amber-100 tracking-wide">{country.name}</div>
-              <div className="text-[10px] uppercase tracking-[0.22em]" style={{ color: `${d.color}cc` }}>{d.name}</div>
+              <div className="text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5" style={{ color: `${d.color}cc` }}>
+                <span>{d.name}</span>
+                {babyMode && (
+                  <span className="px-1.5 py-0.5 rounded text-[8.5px] font-[Fraunces]"
+                    style={{ backgroundColor: "#9ab09333", color: "#c0d4ba", border: "1px solid #9ab09366" }}>
+                    BABY
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2 flex-1 overflow-x-auto">
@@ -2219,9 +2461,9 @@ function GameScreen({ initialDifficulty, country, scenario, restored, onExit, ch
           <div className="flex items-center gap-2">
             <MinistryButton symbol="💰" label="Treasury" onClick={() => setActivePanel("treasury")} active={activePanel === "treasury"} />
             <MinistryButton symbol="🏦" label="Central Bank" onClick={() => setActivePanel("cb")} active={activePanel === "cb"} />
-            <MinistryButton symbol="⚓" label="Trade" onClick={() => setActivePanel("trade")} active={activePanel === "trade"} />
-            <MinistryButton symbol="🏭" label="Industry" onClick={() => setActivePanel("industry")} active={activePanel === "industry"} />
-            <MinistryButton symbol="💡" label="Institutions" onClick={() => setActivePanel("tech")} active={activePanel === "tech"} badge={state.techPoints > 0 ? state.techPoints : null} />
+            {!babyMode && <MinistryButton symbol="⚓" label="Trade" onClick={() => setActivePanel("trade")} active={activePanel === "trade"} />}
+            {!babyMode && <MinistryButton symbol="🏭" label="Industry" onClick={() => setActivePanel("industry")} active={activePanel === "industry"} />}
+            {!babyMode && <MinistryButton symbol="💡" label="Institutions" onClick={() => setActivePanel("tech")} active={activePanel === "tech"} badge={state.techPoints > 0 ? state.techPoints : null} />}
             <MinistryButton symbol="📊" label="Records" onClick={() => setActivePanel("charts")} active={activePanel === "charts"} />
           </div>
           <div className="ml-auto flex items-center gap-3">
@@ -2436,6 +2678,9 @@ export default function App() {
   const [menuPanel, setMenuPanel] = useState(null);
   const [cheatsActive, setCheatsActive] = useState(false);
   const [unlockedAch, setUnlockedAch] = useState([]);
+  // Baby Mode: simplifies the UI and locks to the Tutor difficulty. Skips the
+  // difficulty picker and the briefing screen so newcomers reach gameplay fast.
+  const [babyMode, setBabyMode] = useState(false);
 
   useEffect(() => {
     const s = loadGame();
@@ -2484,7 +2729,19 @@ export default function App() {
       {screen === "menu" && <MainMenu hasSave={hasSave} cheatsActive={cheatsActive}
         onCheatActivated={() => setCheatsActive(true)}
         onContinue={startContinue}
-        onNewGame={() => { clearSave(); setHasSave(false); setRestored(null); setScreen("mode"); }}
+        onNewGame={() => { clearSave(); setHasSave(false); setRestored(null); setBabyMode(false); setScreen("mode"); }}
+        onBabyMode={() => {
+          // Baby Mode flow: skip difficulty + briefing entirely. Force tutor
+          // and send the player straight to country selection in fiction mode
+          // (Aurelia + custom). Real-world picks are still allowed via the
+          // mode select they reach next.
+          clearSave();
+          setHasSave(false);
+          setRestored(null);
+          setBabyMode(true);
+          setDifficulty("tutor");
+          setScreen("mode");
+        }}
         onHow={() => setScreen("how")}
         onRanking={() => setMenuPanel("ranking")}
         onAchievements={() => setMenuPanel("achievements")}
@@ -2495,7 +2752,11 @@ export default function App() {
       {screen === "mode" && <ModeSelect onPick={(m) => { setMode(m); if (m === "historical") setScreen("scenario"); else setScreen("country"); }} onBack={() => setScreen("menu")} />}
 
       {screen === "country" && <CountryPicker mode={mode}
-        onSelect={(k) => { setCountryKey(k); setCustomCountry(null); setScenarioKey(null); setScreen("difficulty"); }}
+        onSelect={(k) => {
+          setCountryKey(k); setCustomCountry(null); setScenarioKey(null);
+          // In Baby Mode, skip difficulty + briefing screens entirely.
+          setScreen(babyMode ? "game" : "difficulty");
+        }}
         onCustom={() => setScreen("custom")}
         onBack={() => setScreen("mode")} />}
 
@@ -2503,7 +2764,10 @@ export default function App() {
         onSelect={(k) => { setScenarioKey(k); setDifficulty(HISTORICAL_SCENARIOS[k].difficultyTier); setScreen("briefing"); }}
         onBack={() => setScreen("mode")} />}
 
-      {screen === "custom" && <CustomBuilder onDone={(c) => { setCustomCountry(c); setCountryKey("custom"); setScenarioKey(null); setScreen("difficulty"); }} onBack={() => setScreen("country")} />}
+      {screen === "custom" && <CustomBuilder onDone={(c) => {
+        setCustomCountry(c); setCountryKey("custom"); setScenarioKey(null);
+        setScreen(babyMode ? "game" : "difficulty");
+      }} onBack={() => setScreen("country")} />}
 
       {screen === "difficulty" && <DifficultySelect onSelect={(d) => { setDifficulty(d); setScreen("briefing"); }} onBack={() => setScreen("country")} />}
 
@@ -2513,9 +2777,10 @@ export default function App() {
 
       {screen === "game" && <GameScreen initialDifficulty={difficulty} country={activeCountry} scenario={activeScenario} restored={restored}
         cheatsActive={cheatsActive}
+        babyMode={babyMode}
         unlockedAch={unlockedAch}
         setUnlockedAch={setUnlockedAch}
-        onExit={() => { setScreen("menu"); setRestored(null); setScenarioKey(null); setHasSave(!!loadGame()); }} />}
+        onExit={() => { setScreen("menu"); setRestored(null); setScenarioKey(null); setBabyMode(false); setHasSave(!!loadGame()); }} />}
 
       {/* Menu-level panels */}
       {menuPanel === "ranking" && <GdpRanking ranking={menuRanking} onClose={() => setMenuPanel(null)} />}
