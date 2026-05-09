@@ -1,7 +1,12 @@
 // ============================================================
 // COUNTRIES & REGIONS DATA
-// All G7 countries with researched regions and real 2026 conditions
+// All G7 countries with researched regions and real 2026 conditions.
+// v0.8.1: Real subnational geometry attached via COUNTRY_GEO. Hand-drawn
+// SVG paths kept on each region as a fallback when the real geometry
+// fetch fails.
 // ============================================================
+
+import { COUNTRY_GEO } from "./countryGeo.js";
 
 // ---------- AURELIA (fictional, unchanged) ----------
 export const AURELIA_REGIONS = [
@@ -70,39 +75,60 @@ const USA_REGIONS = [
 // ---------- UNITED KINGDOM 2026 ----------
 // Real regions: Scotland (oil/finance/whisky), North (manufacturing/former industrial), Midlands (manufacturing/auto),
 // London (finance dominates UK economy), South East (tech/services), Wales (steel/ag), Northern Ireland (ag/services)
+// UNITED KINGDOM — v0.8.1: Expanded to 12 NUTS-1 regions per brief.
+// Real subnational geography is loaded from martinjc/UK-GeoJSON at runtime.
+// The hand-drawn paths below are simplified rectangle stand-ins, used only
+// as a fallback when the network is unavailable. GDP shares are based on
+// 2023 ONS regional GVA estimates rounded for game balance.
 const UK_REGIONS = [
-  { id: "scotland", name: "Scotland", industry: "Energy, Finance & Whisky",
-    path: "M 140 40 L 220 50 L 240 100 L 200 140 L 140 130 L 110 90 Z",
-    labelX: 175, labelY: 90, share: 0.08,
-    sensitivity: { tariff: 0.2, minWage: -0.3, rate: -0.5, subsidyKey: "mining" } },
-  { id: "north", name: "North England", industry: "Manufacturing & Logistics",
-    path: "M 140 130 L 200 140 L 230 180 L 200 220 L 140 210 L 120 170 Z",
-    labelX: 175, labelY: 180, share: 0.13,
-    sensitivity: { tariff: 0.7, minWage: -0.5, rate: -0.8, subsidyKey: "manufacturing" } },
-  { id: "midlands", name: "The Midlands", industry: "Auto & Manufacturing",
-    path: "M 140 210 L 200 220 L 220 260 L 170 290 L 120 270 Z",
-    labelX: 170, labelY: 250, share: 0.14,
-    sensitivity: { tariff: 0.8, minWage: -0.5, rate: -0.9, subsidyKey: "manufacturing" } },
-  { id: "wales", name: "Wales", industry: "Steel, Agriculture & Tourism",
-    path: "M 60 220 L 120 270 L 115 310 L 60 310 L 40 270 Z",
-    labelX: 80, labelY: 280, share: 0.04,
-    sensitivity: { tariff: 0.5, minWage: -0.4, rate: -0.3, subsidyKey: "agriculture" } },
-  { id: "london", name: "Greater London", industry: "Finance & Services",
+  { id: "uk_london", name: "London", industry: "Finance & Services",
     path: "M 218 298 L 242 296 L 246 318 L 222 320 Z",
-    labelX: 232, labelY: 312, share: 0.27,
+    labelX: 232, labelY: 312, share: 0.221,
     sensitivity: { tariff: -0.4, minWage: -0.1, rate: -1.2, subsidyKey: "services" } },
-  { id: "southeast", name: "South East", industry: "Tech & Services",
+  { id: "uk_southeast", name: "South East", industry: "Tech & Services",
     path: "M 170 290 L 218 298 L 222 320 L 246 318 L 260 325 L 240 360 L 170 340 L 140 310 Z",
-    labelX: 190, labelY: 335, share: 0.26,
-    sensitivity: { tariff: -0.2, minWage: -0.2, rate: -1.0, subsidyKey: "services" } },
-  { id: "ni", name: "Northern Ireland", industry: "Agriculture & Services",
-    path: "M 20 140 L 85 140 L 90 195 L 25 190 Z",
-    labelX: 55, labelY: 170, share: 0.03,
-    sensitivity: { tariff: 0.2, minWage: -0.4, rate: -0.4, subsidyKey: "agriculture" } },
-  { id: "swest", name: "South West", industry: "Tourism & Agriculture",
+    labelX: 195, labelY: 335, share: 0.158,
+    sensitivity: { tariff: -0.3, minWage: -0.2, rate: -1.0, subsidyKey: "services" } },
+  { id: "uk_southwest", name: "South West", industry: "Tourism & Aerospace",
     path: "M 40 310 L 115 310 L 140 310 L 170 340 L 120 370 L 50 360 Z",
-    labelX: 110, labelY: 340, share: 0.05,
-    sensitivity: { tariff: 0.1, minWage: -0.4, rate: -0.3, subsidyKey: "agriculture" } },
+    labelX: 110, labelY: 340, share: 0.080,
+    sensitivity: { tariff: 0.1, minWage: -0.4, rate: -0.4, subsidyKey: "agriculture" } },
+  { id: "uk_east", name: "East of England", industry: "Tech & Pharmaceuticals",
+    path: "M 200 260 L 250 260 L 260 295 L 218 298 L 200 285 Z",
+    labelX: 230, labelY: 280, share: 0.094,
+    sensitivity: { tariff: -0.1, minWage: -0.3, rate: -0.8, subsidyKey: "services" } },
+  { id: "uk_eastmids", name: "East Midlands", industry: "Manufacturing & Logistics",
+    path: "M 165 230 L 220 230 L 220 260 L 170 270 Z",
+    labelX: 195, labelY: 248, share: 0.062,
+    sensitivity: { tariff: 0.7, minWage: -0.5, rate: -0.8, subsidyKey: "manufacturing" } },
+  { id: "uk_westmids", name: "West Midlands", industry: "Auto & Manufacturing",
+    path: "M 115 230 L 165 230 L 170 270 L 120 270 Z",
+    labelX: 142, labelY: 250, share: 0.071,
+    sensitivity: { tariff: 0.9, minWage: -0.6, rate: -0.9, subsidyKey: "manufacturing" } },
+  { id: "uk_yorkshire", name: "Yorkshire and the Humber", industry: "Industry & Services",
+    path: "M 140 195 L 220 195 L 220 230 L 140 230 Z",
+    labelX: 180, labelY: 213, share: 0.063,
+    sensitivity: { tariff: 0.5, minWage: -0.5, rate: -0.7, subsidyKey: "manufacturing" } },
+  { id: "uk_northwest", name: "North West", industry: "Industry & Services",
+    path: "M 90 175 L 140 175 L 140 230 L 95 230 Z",
+    labelX: 115, labelY: 205, share: 0.090,
+    sensitivity: { tariff: 0.4, minWage: -0.5, rate: -0.7, subsidyKey: "manufacturing" } },
+  { id: "uk_northeast", name: "North East", industry: "Industry & Logistics",
+    path: "M 130 140 L 200 140 L 200 175 L 130 175 Z",
+    labelX: 165, labelY: 158, share: 0.030,
+    sensitivity: { tariff: 0.6, minWage: -0.5, rate: -0.6, subsidyKey: "manufacturing" } },
+  { id: "uk_scotland", name: "Scotland", industry: "Energy, Finance & Whisky",
+    path: "M 140 40 L 220 50 L 240 100 L 200 140 L 140 130 L 110 90 Z",
+    labelX: 175, labelY: 90, share: 0.075,
+    sensitivity: { tariff: 0.2, minWage: -0.3, rate: -0.5, subsidyKey: "mining" } },
+  { id: "uk_wales", name: "Wales", industry: "Steel, Agriculture & Tourism",
+    path: "M 60 220 L 120 270 L 115 310 L 60 310 L 40 270 Z",
+    labelX: 80, labelY: 280, share: 0.034,
+    sensitivity: { tariff: 0.5, minWage: -0.4, rate: -0.3, subsidyKey: "agriculture" } },
+  { id: "uk_ni", name: "Northern Ireland", industry: "Agriculture & Services",
+    path: "M 20 140 L 85 140 L 90 195 L 25 190 Z",
+    labelX: 55, labelY: 170, share: 0.022,
+    sensitivity: { tariff: 0.2, minWage: -0.4, rate: -0.4, subsidyKey: "agriculture" } },
 ];
 
 // ---------- GERMANY 2026 ----------
@@ -350,7 +376,7 @@ export const COUNTRIES = {
   usa2026: {
     key: "usa2026", name: "United States", kind: "nonfiction", flagEmoji: "🇺🇸",
     subtitle: "2026 · The world's largest economy",
-    regions: USA_REGIONS, mapViewBox: "0 0 680 380",
+    regions: USA_REGIONS, mapViewBox: "0 0 680 380", geoConfig: COUNTRY_GEO.usa2026,
     startingGdp: 28000, baseTrend: 0.022,
     flavor: "A services-dominated economy with the world's reserve currency. Powerful Fed, deep capital markets, structural trade deficit.",
     contextTaxRate: 0.26, contextRate: 0.045, contextDebt: 34000,
@@ -358,7 +384,7 @@ export const COUNTRIES = {
   uk2026: {
     key: "uk2026", name: "United Kingdom", kind: "nonfiction", flagEmoji: "🇬🇧",
     subtitle: "2026 · Post-Brexit services economy",
-    regions: UK_REGIONS, mapViewBox: "0 0 300 400",
+    regions: UK_REGIONS, mapViewBox: "0 0 300 400", geoConfig: COUNTRY_GEO.uk2026,
     startingGdp: 3500, baseTrend: 0.014,
     flavor: "London-centric finance hub, still adjusting after leaving the EU. High services share, weak productivity growth, persistent trade deficit.",
     contextTaxRate: 0.33, contextRate: 0.045, contextDebt: 3400,
@@ -366,7 +392,7 @@ export const COUNTRIES = {
   germany2026: {
     key: "germany2026", name: "Germany", kind: "nonfiction", flagEmoji: "🇩🇪",
     subtitle: "2026 · Europe's industrial core",
-    regions: GERMANY_REGIONS, mapViewBox: "0 0 520 400",
+    regions: GERMANY_REGIONS, mapViewBox: "0 0 520 400", geoConfig: COUNTRY_GEO.germany2026,
     startingGdp: 4500, baseTrend: 0.009,
     flavor: "Export powerhouse built on automotive and machinery. Facing energy transition pain, aging population, and tough competition from China.",
     contextTaxRate: 0.37, contextRate: 0.035, contextDebt: 2900,
@@ -374,7 +400,7 @@ export const COUNTRIES = {
   france2026: {
     key: "france2026", name: "France", kind: "nonfiction", flagEmoji: "🇫🇷",
     subtitle: "2026 · The diversified core of Europe",
-    regions: FRANCE_REGIONS, mapViewBox: "0 0 480 400",
+    regions: FRANCE_REGIONS, mapViewBox: "0 0 480 400", geoConfig: COUNTRY_GEO.france2026,
     startingGdp: 3200, baseTrend: 0.012,
     flavor: "Paris dominates. Strong aerospace, luxury, and agriculture. High taxes, generous welfare, persistent deficit. Heavy state role in the economy.",
     contextTaxRate: 0.46, contextRate: 0.035, contextDebt: 3400,
@@ -382,7 +408,7 @@ export const COUNTRIES = {
   japan2026: {
     key: "japan2026", name: "Japan", kind: "nonfiction", flagEmoji: "🇯🇵",
     subtitle: "2026 · Aging high-tech giant",
-    regions: JAPAN_REGIONS, mapViewBox: "0 0 620 400",
+    regions: JAPAN_REGIONS, mapViewBox: "0 0 620 400", geoConfig: COUNTRY_GEO.japan2026,
     startingGdp: 4200, baseTrend: 0.008,
     flavor: "Shrinking population, huge debt, world-class industry. The Bank of Japan has finally exited zero rates. Structural deflation fears remain.",
     contextTaxRate: 0.31, contextRate: 0.005, contextDebt: 10500,
@@ -390,7 +416,7 @@ export const COUNTRIES = {
   canada2026: {
     key: "canada2026", name: "Canada", kind: "nonfiction", flagEmoji: "🇨🇦",
     subtitle: "2026 · Resources, banking, and housing",
-    regions: CANADA_REGIONS, mapViewBox: "0 0 620 360",
+    regions: CANADA_REGIONS, mapViewBox: "0 0 620 360", geoConfig: COUNTRY_GEO.canada2026,
     startingGdp: 2200, baseTrend: 0.017,
     flavor: "Commodity exporter tightly linked to US markets. Housing is overvalued, productivity is weak, and immigration is the main growth engine.",
     contextTaxRate: 0.33, contextRate: 0.035, contextDebt: 2300,
@@ -398,7 +424,7 @@ export const COUNTRIES = {
   italy2026: {
     key: "italy2026", name: "Italy", kind: "nonfiction", flagEmoji: "🇮🇹",
     subtitle: "2026 · The dual economy",
-    regions: ITALY_REGIONS, mapViewBox: "0 0 500 470",
+    regions: ITALY_REGIONS, mapViewBox: "0 0 500 470", geoConfig: COUNTRY_GEO.italy2026,
     startingGdp: 2300, baseTrend: 0.007,
     flavor: "Wealthy industrial North, struggling South. High debt, slow growth, but world-class luxury, manufacturing, and tourism.",
     contextTaxRate: 0.42, contextRate: 0.035, contextDebt: 3200,
