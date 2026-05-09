@@ -367,6 +367,27 @@ export const CHEATS = [
 
 export const UPDATES_LOG = [
   {
+    version: "0.8.1",
+    date: "May 2026",
+    entries: [
+      { type: "add", text: "Real subnational geography for every playable country. The seven real-world maps now render true administrative borders sourced from Natural Earth and national statistical offices, replacing the hand-drawn approximations from earlier builds." },
+      { type: "add", text: "United Kingdom expanded to 12 NUTS-1 regions: London, South East, South West, East of England, East Midlands, West Midlands, Yorkshire and the Humber, North West, North East, Scotland, Wales, Northern Ireland. Each carries its own GVA share, industry profile, and policy sensitivity." },
+      { type: "tune", text: "Bavaria, Baden-Württemberg, Lombardia, Île-de-France, Tokyo, Ontario, and the rest now appear in their actual borders. Hover and selection still operate on the economic region level so grouped admin divisions light up together." },
+      { type: "fix", text: "Map fetch failures fall back gracefully to the existing hand-drawn paths. The game stays playable even if a hosted dataset is briefly unavailable." },
+    ],
+  },
+  {
+    version: "0.8",
+    date: "May 2026",
+    entries: [
+      { type: "add", text: "Baby Mode added to the main menu. A streamlined entry point that locks to the new Beginner difficulty, hides advanced ministries, and skips the difficulty briefing so newcomers reach gameplay quickly." },
+      { type: "tune", text: "World map enlarged. The Real World selection screen now uses a tighter projection and a wider container, giving every continent meaningful presence." },
+      { type: "tune", text: "Advisor, Minister, and Chancellor difficulties relaxed across the board. Wider target bands, lower crisis frequency, gentler starting conditions, shorter required win streaks. Autocrat remains as demanding as ever." },
+      { type: "fix", text: "Sea and ocean labels on country region maps now carry a stronger dark halo and brighter fill to stay legible against neighboring drop-shadows." },
+      { type: "tune", text: "Removed the floating aurora ribbon from the menu sky. The horizon reads cleaner without it." },
+    ],
+  },
+  {
     version: "0.7.1",
     date: "Apr 2026",
     entries: [
